@@ -252,9 +252,9 @@ auth_method: internal
 ##   path_prefix: "/auth/"
 
 ## auth_method: external
-## extauth_program: "~/my-ejabberd-20160721/auth.py"
-## extauth_cache: 600
-## extauth_instances: 3
+## extauth_program: "$PWD/auth.py"
+## extauth_cache: false
+## extauth_instances: 10
 
 
 ##
@@ -618,7 +618,7 @@ modules:
   mod_muc: 
     ## host: "conference.@HOST@"
     access:
-      - muc
+      - allow: muc
     access_admin:
       - allow: admin
     access_create: muc_create
