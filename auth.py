@@ -27,7 +27,13 @@ def auth(username, server, password):
     return False
 
 def isuser(username, server):
-    return True
+    url = "http://192.168.10.200:9000/auth/user_exists?user=" + username + "&server=" + server
+    url_handle = urllib2.urlopen(url)
+    auth_res = url_handle.read()
+    url_handle.close()
+    if auth_res == 'true':
+        return True
+    return False
 
 def setpass(username, server, password):
     return True
