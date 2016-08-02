@@ -351,7 +351,7 @@ auth_method: internal
 ##
 sql_type: mysql
 sql_server: "localhost"
-sql_database: "mysql"
+sql_database: "ejabberd"
 sql_username: "ejabberd"
 sql_password: "ejabberd"
 ##
@@ -688,7 +688,8 @@ modules:
     ##
     ##   access_from: deny
     ##   access: register
-  mod_roster: {}
+  mod_roster:
+    db_type: odbc
   mod_shared_roster: {}
   mod_stats: {}
   mod_time: {}
