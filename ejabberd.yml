@@ -631,8 +631,12 @@ modules:
   ## mod_muc_log: {}
   ## mod_muc_room: {}
   ## mod_multicast: {}
-  mod_offline: 
+  mod_offline:
+    db_type: sql
     access_max_user_messages: max_user_offline_messages
+  mod_offline_post:
+    auth_token: "secret-token"
+    post_url: "http://localhost:9000/chat/send_push"
   mod_ping:
     send_pings: true
     ping_interval: 5
