@@ -23,13 +23,14 @@
 -include("mod_muc_room.hrl").
 %-include_lib("ejabberd/include/jlib.hrl").
 %-include_lib("jiffy_util.hrl").
+
 %% API
 % Log chat program
 % It is based on user comments
 -export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
--export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3]).
+-export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
 
 %-record(state, {config}).
 
@@ -55,6 +56,7 @@ start(Host, _Opts) ->
   ejabberd_hooks:add(muc_filter_presence, Host, ?MODULE, on_filter_group_chat_presence_packet, 1),
   ejabberd_hooks:add(filter_packet, global, ?MODULE, on_filter_packet, 2),
   ejabberd_hooks:add(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
+  ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 87),
 %%  capture packets received by user
 %%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
   ok.
@@ -66,9 +68,30 @@ stop(Host) ->
   ejabberd_hooks:delete(muc_filter_presence, Host, ?MODULE, on_filter_group_chat_presence_packet, 1),
   ejabberd_hooks:delete(filter_packet, global, ?MODULE, task, 2),
   ejabberd_hooks:delete(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
+  ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 87),
   % delete packets received by user
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
   ok.
+
+on_user_send_packet(Pkt, C2SState, JID, Peer) ->
+  ?INFO_MSG("Inside on_user_send_packet...", []),
+  XmlP = Pkt,
+  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
+  ?INFO_MSG("Packet string: ~p", [XmlStr]),
+  STB = fxml:get_subtag(XmlP, <<"body">>),
+  case STB of
+    false ->
+      Body = <<"">>,
+      XmlN = XmlP;
+    _ ->
+      Body = fxml:get_tag_cdata(STB),
+      BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
+      ?INFO_MSG("Message modified to: ~p", [BodyR]),
+      XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP)
+  end,
+  ?INFO_MSG("Exiting on_user_send_packet...~n", []),
+  Pkt.
+%  XmlN.
 
 on_update_presence(Packet, User, Server) ->
   File = "chat_history.log",
@@ -161,12 +184,16 @@ task_chat({From, To, XmlP} = Packet) ->
   STB = fxml:get_subtag(XmlP, <<"body">>),
   case STB of
     false ->
-      Body = <<"">>;
+      Body = <<"">>,
+      XmlN = XmlP;
     _ ->
-      Body = fxml:get_tag_cdata(STB)
+      Body = fxml:get_tag_cdata(STB),
+      BodyR = list_to_binary(lists:reverse(binary_to_list(Body))),
+      XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP)
   end,
 %  Body = fxml:get_tag_cdata(fxml:get_subtag(XmlP, <<"body">>)),
   ?INFO_MSG("Message body: ~p~n~n", [binary_to_list(Body)]),
+%  ?INFO_MSG("New XML: ~p", [binary_to_list(fxml:element_to_binary(XmlN))]),
   Z = string:concat("\nMessage: ", Body),
   chat_to_text_file(File, Z),
 
@@ -184,6 +211,7 @@ task_chat({From, To, XmlP} = Packet) ->
     true ->
       chat_to_text_file(File, "\n****** Processing packet and exiting task_chat ******\n"),
       Packet;
+%      {From, To, XmlN};
     false ->
       chat_to_text_file(File, "\n****** Skipping packet and exiting task_chat ******\n")
   end.
