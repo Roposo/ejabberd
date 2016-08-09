@@ -96,7 +96,7 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
       XmlN = XmlP,
       To = fxml:get_tag_attr_s(<<"to">>, XmlP),
       PostUrl = "http://localhost:9015/chat/send_push",
-      ToP = string:concat("to=", binary_to_list(To)),
+      ToP = string:concat("to=", binary_to_list(Peer#jid.luser)),
       FrP = string:concat("from=", binary_to_list(JID#jid.luser)),
       BoP = string:concat("body=", "Chat invitation!"),
       TyP = string:concat("type=", binary_to_list(Type)),
