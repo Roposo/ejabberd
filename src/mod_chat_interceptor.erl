@@ -79,19 +79,36 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
   XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
   ?INFO_MSG("Packet string: ~p", [XmlStr]),
   STB = fxml:get_subtag(XmlP, <<"body">>),
-  case STB of
-    false ->
-      Body = <<"">>,
-      XmlN = XmlP;
+  Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
+  ?INFO_MSG("Packet type: ~p", [Type]),
+  case Type of
+    <<"chat">> ->
+      Body = fxml:get_path_s(XmlP, [{elem, list_to_binary("body")}, cdata]),
+      case Body of
+        <<"">> ->
+          XmlN = XmlP;
+        _ ->
+          BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
+          ?INFO_MSG("Message modified to: ~p", [BodyR]),
+          XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP)
+      end;
+    <<"subscribe">> ->
+      XmlN = XmlP,
+      To = fxml:get_tag_attr_s(<<"to">>, XmlP),
+      PostUrl = "http://localhost:9015/chat/send_push",
+      ToP = string:concat("to=", binary_to_list(To)),
+      FrP = string:concat("from=", binary_to_list(JID#jid.luser)),
+      BoP = string:concat("body=", "Chat invitation!"),
+      TyP = string:concat("type=", binary_to_list(Type)),
+      Data = string:join([ToP, FrP, BoP, TyP], "&"),
+      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
+      {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data},[],[]);
     _ ->
-      Body = fxml:get_tag_cdata(STB),
-      BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
-      ?INFO_MSG("Message modified to: ~p", [BodyR]),
-      XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP)
+      XmlN = XmlP
   end,
   ?INFO_MSG("Exiting on_user_send_packet...~n", []),
-  Pkt.
-%  XmlN.
+%  Pkt.
+  XmlN.
 
 on_update_presence(Packet, User, Server) ->
   File = "chat_history.log",
