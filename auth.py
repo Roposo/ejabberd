@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import urllib2
+import requests
 import sys
 from struct import *
 
@@ -18,11 +18,10 @@ def to_ejabberd(bool):
     sys.stdout.flush()
 
 def auth(username, server, password):
-    url = "http://192.168.10.200:9000/auth/authenticate_user?user=" + username + "&server=" + server + "&pass=" + password
-    url_handle = urllib2.urlopen(url)
-    auth_res = url_handle.read()
-    url_handle.close()
-    if auth_res == 'true':
+    url = "http://localhost:9015/auth/authenticate_user"
+    payload = {'user': username, 'server': server, 'pass': password}
+    auth_res = requests.post(url, data = payload)
+    if auth_res.text == 'true':
         return True
     return False
 
