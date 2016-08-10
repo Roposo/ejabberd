@@ -74,13 +74,13 @@ stop(Host) ->
   ok.
 
 on_user_send_packet(Pkt, C2SState, JID, Peer) ->
-  ?INFO_MSG("Inside on_user_send_packet...", []),
+%  ?INFO_MSG("Inside on_user_send_packet...", []),
   XmlP = Pkt,
   XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
-  ?INFO_MSG("Packet string: ~p", [XmlStr]),
+%  ?INFO_MSG("Packet string: ~p", [XmlStr]),
   STB = fxml:get_subtag(XmlP, <<"body">>),
   Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
-  ?INFO_MSG("Packet type: ~p", [Type]),
+%  ?INFO_MSG("Packet type: ~p", [Type]),
   case Type of
     <<"chat">> ->
       Body = fxml:get_path_s(XmlP, [{elem, list_to_binary("body")}, cdata]),
@@ -89,7 +89,7 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
           XmlN = XmlP;
         _ ->
           BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
-          ?INFO_MSG("Message modified to: ~p", [BodyR]),
+%          ?INFO_MSG("Message modified to: ~p", [BodyR]),
           XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP)
       end;
     <<"subscribe">> ->
@@ -101,12 +101,12 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
       BoP = string:concat("body=", "Chat invitation!"),
       TyP = string:concat("type=", binary_to_list(Type)),
       Data = string:join([ToP, FrP, BoP, TyP], "&"),
-      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
+%      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
       {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data},[],[]);
     _ ->
       XmlN = XmlP
   end,
-  ?INFO_MSG("Exiting on_user_send_packet...~n", []),
+%  ?INFO_MSG("Exiting on_user_send_packet...~n", []),
 %  Pkt.
   XmlN.
 
@@ -172,11 +172,12 @@ on_filter_group_chat_packet(Packet, MUCState, RoomJID, From, FromNick) ->
   Packet.
 
 on_filter_packet(Packet) ->
-  ?INFO_MSG("*** in filter packet ***", []),
+  ?INFO_MSG("************ Packet processing starts ************", []),
   File = "chat_history.log",
   chat_to_text_file(File, "\n****** entering on_filter_packet ******\n"),
-  task_chat(Packet).
-%  Packet.
+  PacketN = task_chat(Packet),
+  ?INFO_MSG("************ Packet processing ends ************~n~n", []),
+  PacketN.
 
 task_chat({From, To, XmlP} = Packet) ->
   File = "chat_history.log",
@@ -209,7 +210,7 @@ task_chat({From, To, XmlP} = Packet) ->
       XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP)
   end,
 %  Body = fxml:get_tag_cdata(fxml:get_subtag(XmlP, <<"body">>)),
-  ?INFO_MSG("Message body: ~p~n~n", [binary_to_list(Body)]),
+  ?INFO_MSG("Message body: ~p", [binary_to_list(Body)]),
 %  ?INFO_MSG("New XML: ~p", [binary_to_list(fxml:element_to_binary(XmlN))]),
   Z = string:concat("\nMessage: ", Body),
   chat_to_text_file(File, Z),
@@ -253,18 +254,6 @@ get_nickname_list_from_map_array([]) ->
 %  Text = binary_to_string(maps:get(<<"text">>, DetMap)),
 %  Text.
 
-chat_to_text_file(File, Data) ->
-  EnableLogging = true,
-  case EnableLogging of
-    true ->
-      {ok, IO} = file:open(File, [append]),
-      file:write(IO, Data),
-%      file:write(IO, "\n"),
-      file:close( IO );
-    false ->
-      LTB = list_to_binary(File)
-  end.
-
 post_to_server(From, To, Body, ChatType, GroupChatFullName, ID) ->
   File = "chat_history.log",
   chat_to_text_file(File, "\n****** Posting to backend server ******\n"),
@@ -298,4 +287,16 @@ post_to_server(From, To, Body, ChatType, GroupChatFullName, ID) ->
       chat_to_text_file(File, "\n****** HTTP request response \"error\" ******\n")
   end,
   ResponseBody.
+
+chat_to_text_file(File, Data) ->
+  EnableLogging = false,
+  case EnableLogging of
+    true ->
+      {ok, IO} = file:open(File, [append]),
+      file:write(IO, Data),
+%      file:write(IO, "\n"),
+      file:close( IO );
+    false ->
+      LTB = list_to_binary(File)
+  end.
 
