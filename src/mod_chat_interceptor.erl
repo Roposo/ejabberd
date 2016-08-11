@@ -211,13 +211,14 @@ task_chat({From, To, XmlP} = Packet) ->
   case STB of
     false ->
       Body = <<"">>,
-      XmlN = XmlP;
+      XmlN = XmlP,
+      ToN = To;
     _ ->
       Body = fxml:get_tag_cdata(STB),
       BodyR = list_to_binary(lists:reverse(binary_to_list(Body))),
-      XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP)
+      XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP),
+      ToN = jid:replace_resource(To, <<"">>)
   end,
-%  Body = fxml:get_tag_cdata(fxml:get_subtag(XmlP, <<"body">>)),
   ?INFO_MSG("Message body: ~p", [binary_to_list(Body)]),
 %  ?INFO_MSG("New XML: ~p", [binary_to_list(fxml:element_to_binary(XmlN))]),
   Z = string:concat("\nMessage: ", Body),
@@ -229,14 +230,16 @@ task_chat({From, To, XmlP} = Packet) ->
       ToInXml = fxml:get_tag_attr_s(<<"to">>, XmlP),
       ID = fxml:get_tag_attr_s(<<"id">>, XmlP),
       ResponseBody = post_to_server(FromS, ToS, Body, Type, ToInXml, ID),
-      ProcessPacket = string:equal(ResponseBody, "Success");
+      ProcessPacket = string:equal(ResponseBody, "Success"),
+      ToN = To;
     false ->
       ProcessPacket = true
   end,
   case ProcessPacket of
     true ->
       chat_to_text_file(File, "\n****** Processing packet and exiting task_chat ******\n"),
-      Packet;
+%      Packet;
+      {From, ToN, XmlP};
 %      {From, To, XmlN};
     false ->
       chat_to_text_file(File, "\n****** Skipping packet and exiting task_chat ******\n")
