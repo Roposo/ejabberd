@@ -95,14 +95,22 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
     <<"subscribe">> ->
       XmlN = XmlP,
       To = fxml:get_tag_attr_s(<<"to">>, XmlP),
-      PostUrl = "http://localhost:9015/chat/send_push",
-      ToP = string:concat("to=", binary_to_list(Peer#jid.luser)),
-      FrP = string:concat("from=", binary_to_list(JID#jid.luser)),
-      BoP = string:concat("body=", "Chat invitation!"),
-      TyP = string:concat("type=", binary_to_list(Type)),
-      Data = string:join([ToP, FrP, BoP, TyP], "&"),
-%      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-      {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data},[],[]);
+      Resources = ejabberd_sm:get_user_resources(Peer#jid.luser, Peer#jid.lserver),
+%      ?INFO_MSG("**************** Resources found for ~p : ~p ****************", [Peer#jid.luser, Resources]),
+      if
+        length(Resources) == 0 ->
+          ?INFO_MSG("************ Sending push notification to ~p for chat invitation as the user is offline right now ************~n~n", [Peer#jid.luser]),
+          PostUrl = "http://localhost:9015/chat/send_push",
+          ToP = string:concat("to=", binary_to_list(Peer#jid.luser)),
+          FrP = string:concat("from=", binary_to_list(JID#jid.luser)),
+          BoP = string:concat("body=", "Chat invitation!"),
+          TyP = string:concat("type=", binary_to_list(Type)),
+          Data = string:join([ToP, FrP, BoP, TyP], "&"),
+%          ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
+          {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data},[],[]);
+        true ->
+          ok
+      end;
     _ ->
       XmlN = XmlP
   end,
