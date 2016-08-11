@@ -256,6 +256,7 @@ auth_method: internal
 ## extauth_cache: false
 ## extauth_instances: 10
 
+sm_db_type: sql
 
 ##
 ## Store the plain passwords or hashed for SCRAM:
