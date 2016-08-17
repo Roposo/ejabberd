@@ -18,7 +18,7 @@ def to_ejabberd(bool):
     sys.stdout.flush()
 
 def auth(username, server, password):
-    url = "http://localhost:9015/auth/authenticate_user"
+    url = "http://localhost:9020/auth/authenticate_user"
     payload = {'user': username, 'server': server, 'pass': password}
     auth_res = requests.post(url, data = payload)
     if auth_res.text == 'true':
@@ -26,7 +26,7 @@ def auth(username, server, password):
     return False
 
 def isuser(username, server):
-    url = "http://localhost:9015/auth/user_exists"
+    url = "http://localhost:9020/auth/user_exists"
     payload = {'user': username, 'server': server}
     auth_res = requests.post(url, data = payload)
     if auth_res.text == 'true':
