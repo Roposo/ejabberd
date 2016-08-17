@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
@@ -73,6 +73,10 @@ stop(Host) ->
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
   ok.
 
+add_timestamp(Pkt, LServer) ->
+%  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
+  jlib:add_delay_info(Pkt, LServer, erlang:timestamp(), <<"Chat Interceptor">>).
+
 on_user_send_packet(Pkt, C2SState, JID, Peer) ->
 %  ?INFO_MSG("Inside on_user_send_packet...", []),
   XmlP = Pkt,
@@ -90,7 +94,8 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
         _ ->
           BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
 %          ?INFO_MSG("Message modified to: ~p", [BodyR]),
-          XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP)
+          XmlN = add_timestamp(fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP), Peer#jid.lserver)
+%          ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
       end;
     <<"subscribe">> ->
       XmlN = XmlP,
