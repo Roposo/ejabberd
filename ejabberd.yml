@@ -699,7 +699,8 @@ modules:
   mod_stats: {}
   mod_time: {}
   mod_vcard:
-    search: false
+    db_type: odbc
+    search: true
   mod_version: {}
 
 ##
