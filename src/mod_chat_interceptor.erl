@@ -120,8 +120,8 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
       XmlN = XmlP
   end,
 %  ?INFO_MSG("Exiting on_user_send_packet...~n", []),
-%  Pkt.
-  XmlN.
+  Pkt.
+%  XmlN.
 
 on_update_presence(Packet, User, Server) ->
   File = "chat_history.log",
