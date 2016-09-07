@@ -240,9 +240,9 @@ task_chat({From, To, XmlP} = Packet) ->
         <<"subscribe">> ->
           case Subscription of
             <<"none">> ->
-              send_push_notification_to_user(binary_to_list(FromS), binary_to_list(ToUid), "Chat invitation!", "subscribe_request");
+              send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat invitation!", "subscribe_request");
             <<"from">> ->
-              send_push_notification_to_user(binary_to_list(FromS), binary_to_list(ToUid), "Chat acceptance!", "subscribe_accept");
+              send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat acceptance!", "subscribe_accept");
             _ ->
               ?INFO_MSG("", [])
           end;
