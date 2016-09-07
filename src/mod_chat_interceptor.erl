@@ -235,7 +235,7 @@ task_chat({From, To, XmlP} = Packet) ->
     "set" ->
       Ask = fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("ask")}]),
       Subscription = fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("subscription")}]),
-      ToUid = lists:nth(1, string:tokens(fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("jid")}]), "@")),
+      ToUid = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("jid")}])), "@")),
       case Ask of
         <<"subscribe">> ->
           case Subscription of
