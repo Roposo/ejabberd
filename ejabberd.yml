@@ -135,7 +135,7 @@ listen:
     max_stanza_size: 65536
     shaper: c2s_shaper
     access: c2s
-    stream_management: true
+    stream_management: false
     resend_on_timeout: true
     resume_timeout: 300
   - 
@@ -257,6 +257,8 @@ auth_method: internal
 ## extauth_instances: 10
 
 sm_db_type: sql
+
+default_db: sql
 
 ##
 ## Store the plain passwords or hashed for SCRAM:
@@ -613,7 +615,7 @@ modules:
   mod_mam:
     default: always
   ##  db_type: mnesia
-    db_type: odbc
+    db_type: sql
   ## mod_message_log:
   ##  filename: "~/my-ejabberd/var/log/ejabberd/ejabberd-message.log"
   mod_muc: 
@@ -628,7 +630,7 @@ modules:
     default_room_options:
       persistent: true
       mam: true
-    db_type: odbc
+    db_type: sql
   ## mod_muc_log: {}
   ## mod_muc_room: {}
   ## mod_multicast: {}
@@ -694,12 +696,12 @@ modules:
     ##   access_from: deny
     ##   access: register
   mod_roster:
-    db_type: odbc
+    db_type: sql
   mod_shared_roster: {}
   mod_stats: {}
   mod_time: {}
   mod_vcard:
-    db_type: odbc
+    db_type: sql
     search: true
   mod_version: {}
 
