@@ -235,13 +235,14 @@ task_chat({From, To, XmlP} = Packet) ->
     "set" ->
       Ask = fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("ask")}]),
       Subscription = fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("subscription")}]),
+      ToUid = lists:nth(1, string:tokens(fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("jid")}]), "@")),
       case Ask of
         <<"subscribe">> ->
           case Subscription of
             <<"none">> ->
-              send_push_notification_to_user(binary_to_list(FromS), binary_to_list(ToS), "Chat invitation!", "subscribe_request");
+              send_push_notification_to_user(binary_to_list(FromS), binary_to_list(ToUid), "Chat invitation!", "subscribe_request");
             <<"from">> ->
-              send_push_notification_to_user(binary_to_list(FromS), binary_to_list(ToS), "Chat acceptance!", "subscribe_accept");
+              send_push_notification_to_user(binary_to_list(FromS), binary_to_list(ToUid), "Chat acceptance!", "subscribe_accept");
             _ ->
               ?INFO_MSG("", [])
           end;
