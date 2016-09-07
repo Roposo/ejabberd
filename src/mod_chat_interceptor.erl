@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/4]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
@@ -77,6 +77,16 @@ add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
   jlib:add_delay_info(Pkt, LServer, erlang:timestamp(), <<"Chat Interceptor">>).
 
+send_push_notification_to_user(From, To, Body, Type) ->
+  PostUrl = "http://localhost:9020/chat/send_push",
+  ToP = string:concat("to=", To),
+  FrP = string:concat("from=", From),
+  BoP = string:concat("body=", Body),
+  TyP = string:concat("type=", Type),
+  Data = string:join([ToP, FrP, BoP, TyP], "&"),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data},[],[]),
+  ok.
+
 on_user_send_packet(Pkt, C2SState, JID, Peer) ->
 %  ?INFO_MSG("Inside on_user_send_packet...", []),
   XmlP = Pkt,
@@ -96,25 +106,6 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
 %          ?INFO_MSG("Message modified to: ~p", [BodyR]),
           XmlN = add_timestamp(fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP), Peer#jid.lserver)
 %          ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
-      end;
-    <<"subscribe">> ->
-      XmlN = XmlP,
-      To = fxml:get_tag_attr_s(<<"to">>, XmlP),
-      Resources = ejabberd_sm:get_user_resources(Peer#jid.luser, Peer#jid.lserver),
-%      ?INFO_MSG("**************** Resources found for ~p : ~p ****************", [Peer#jid.luser, Resources]),
-      if
-        length(Resources) == 0 ->
-          ?INFO_MSG("************ Sending push notification to ~p for chat invitation as the user is offline right now ************~n~n", [Peer#jid.luser]),
-          PostUrl = "http://localhost:9020/chat/send_push",
-          ToP = string:concat("to=", binary_to_list(Peer#jid.luser)),
-          FrP = string:concat("from=", binary_to_list(JID#jid.luser)),
-          BoP = string:concat("body=", "Chat invitation!"),
-          TyP = string:concat("type=", binary_to_list(Type)),
-          Data = string:join([ToP, FrP, BoP, TyP], "&"),
-%          ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-          {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data},[],[]);
-        true ->
-          ok
       end;
     _ ->
       XmlN = XmlP
@@ -239,6 +230,26 @@ task_chat({From, To, XmlP} = Packet) ->
       ToN = To;
     false ->
       ProcessPacket = true
+  end,
+  case Type of
+    "set" ->
+      Ask = fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("ask")}]),
+      Subscription = fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("subscription")}]),
+      case Ask of
+        <<"subscribe">> ->
+          case Subscription of
+            <<"none">> ->
+              send_push_notification_to_user(binary_to_list(FromS), binary_to_list(ToS), "Chat invitation!", "subscribe_request");
+            <<"from">> ->
+              send_push_notification_to_user(binary_to_list(FromS), binary_to_list(ToS), "Chat acceptance!", "subscribe_accept");
+            _ ->
+              ?INFO_MSG("", [])
+          end;
+        _ ->
+          ?INFO_MSG("", [])
+      end;
+    _ ->
+      ?INFO_MSG("", [])
   end,
   case ProcessPacket of
     true ->
