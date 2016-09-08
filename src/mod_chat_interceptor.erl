@@ -84,6 +84,7 @@ send_push_notification_to_user(From, To, Body, Type) ->
   BoP = string:concat("body=", Body),
   TyP = string:concat("type=", Type),
   Data = string:join([ToP, FrP, BoP, TyP], "&"),
+  ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
   {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data},[],[]),
   ok.
 
