@@ -85,7 +85,7 @@ send_push_notification_to_user(From, To, Body, Type) ->
   TyP = string:concat("type=", Type),
   Data = string:join([ToP, FrP, BoP, TyP], "&"),
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data},[],[]),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [{sync, false}], []),
   ok.
 
 on_user_send_packet(Pkt, C2SState, JID, Peer) ->
@@ -105,15 +105,16 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
         _ ->
           BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
 %          ?INFO_MSG("Message modified to: ~p", [BodyR]),
-          XmlN = add_timestamp(fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP), Peer#jid.lserver)
+%          XmlN = add_timestamp(fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP), Peer#jid.lserver)
+          XmlN = add_timestamp(XmlP, Peer#jid.lserver)
 %          ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
       end;
     _ ->
       XmlN = XmlP
   end,
 %  ?INFO_MSG("Exiting on_user_send_packet...~n", []),
-  Pkt.
-%  XmlN.
+%  Pkt.
+  XmlN.
 
 on_update_presence(Packet, User, Server) ->
   File = "chat_history.log",
