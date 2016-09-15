@@ -88,6 +88,14 @@ send_push_notification_to_user(From, To, Body, Type) ->
   {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], [{sync, false}]),
   ok.
 
+update_vcard_of_user(ToUid) ->
+  PostUrl = "http://localhost:9020/chat/update_vcard",
+  UserP = string:concat("user=", ToUid),
+  Data = string:join([UserP], "&"),
+  ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], [{sync, false}]),
+  ok.
+
 on_user_send_packet(Pkt, C2SState, JID, Peer) ->
 %  ?INFO_MSG("Inside on_user_send_packet...", []),
   XmlP = Pkt,
@@ -241,7 +249,8 @@ task_chat({From, To, XmlP} = Packet) ->
             <<"subscribe">> ->
               case Subscription of
                 <<"none">> ->
-                  send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat invitation!", "subscribe_request");
+                  send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat invitation!", "subscribe_request"),
+                  update_vcard_of_user(ToUid);
                 <<"from">> ->
                   send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat acceptance!", "subscribe_accept");
                 _ ->
