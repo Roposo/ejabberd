@@ -30,7 +30,7 @@
 -export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/4]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
--export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
+-export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, process_iq_set/4]).
 
 %-record(state, {config}).
 
@@ -59,6 +59,7 @@ start(Host, _Opts) ->
   ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 87),
 %%  capture packets received by user
 %%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
+  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
   ok.
 
 stop(Host) ->
@@ -71,6 +72,7 @@ stop(Host) ->
   ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 87),
   % delete packets received by user
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
+  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
   ok.
 
 add_timestamp(Pkt, LServer) ->
@@ -96,11 +98,40 @@ update_vcard_of_user(ToUid) ->
   {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], [{sync, false}]),
   ok.
 
+block_user(Blocker, Blockee) ->
+  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
+  ok.
+
+unblock_user(Unblocker, Unblockee) ->
+  ?INFO_MSG("**************** ~p has unblocked ~p ****************~n~n", [Unblocker, Unblockee]),
+  ok.
+
+process_iq_set(_, From, To, IQ) ->
+%  ?INFO_MSG("~n**************** process_iq_set ****************~n", []),
+  XmlP = IQ#iq.sub_el,
+  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
+%  ?INFO_MSG("XML: ~p", [XmlStr]),
+  {_Xmlel, _Type, _Details, _Body} = XmlP,
+%  ?INFO_MSG("Type: ~p", [_Type]),
+  case _Type of
+    <<"block">> ->
+      Blockee = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, <<"item">>}, {attr, <<"jid">>}])), "@")),
+      Blocker = binary_to_list(From#jid.luser),
+      block_user(Blocker, Blockee);
+    <<"unblock">> ->
+      Unblockee = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, <<"item">>}, {attr, <<"jid">>}])), "@")),
+      Unblocker = binary_to_list(From#jid.luser),
+      unblock_user(Unblocker, Unblockee);
+    _ ->
+      ok
+  end,
+  XmlP.
+
 on_user_send_packet(Pkt, C2SState, JID, Peer) ->
 %  ?INFO_MSG("Inside on_user_send_packet...", []),
   XmlP = Pkt,
   XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
-%  ?INFO_MSG("Packet string: ~p", [XmlStr]),
+%  ?INFO_MSG("**************** on_user_send_packet Packet string: ~p ****************", [XmlStr]),
   {_Xmlel, _Type, _Details, _Body} = XmlP,
 %  ?INFO_MSG("Packet type: ~p", [Type]),
   case _Type of
