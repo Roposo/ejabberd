@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/4]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/4, update_vcard/2]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, process_iq_set/4]).
@@ -87,16 +87,25 @@ send_push_notification_to_user(From, To, Body, Type) ->
   TyP = string:concat("type=", Type),
   Data = string:join([ToP, FrP, BoP, TyP], "&"),
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], [{sync, false}]),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
   ok.
 
-update_vcard_of_user(ToUid) ->
-  PostUrl = "http://localhost:9020/chat/update_vcard",
-  UserP = string:concat("user=", ToUid),
+update_vcard(User, Server) ->
+%  ?INFO_MSG("Update VCard called with arguments: ~p, ~p", [binary_to_list(User), binary_to_list(Server)]),
+  PostUrl = "http://localhost:9020/chat/get_vcard_xml",
+  UserP = string:concat("user=", binary_to_list(User)),
   Data = string:join([UserP], "&"),
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], [{sync, false}]),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+%  ?INFO_MSG("Response body: ~p", [ResponseBody]),
+  VCard = fxml_stream:parse_element(list_to_binary(ResponseBody)),
+%  ?INFO_MSG("Converted string to vcard successfully: ~p", [binary_to_list(fxml:element_to_binary(VCard))]),
+  mod_vcard:set_vcard(User, Server, VCard),
   ok.
+
+update_vcard_of_user(User, Server) ->
+  Key = rpc:async_call(node(), mod_chat_interceptor, update_vcard, [User, Server]),
+  Key.
 
 block_user(Blocker, Blockee) ->
   ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
@@ -277,11 +286,14 @@ task_chat({From, To, XmlP} = Packet) ->
           case Ask of
             <<"subscribe">> ->
               Subscription = fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("subscription")}]),
-              ToUid = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("jid")}])), "@")),
+              ToJID = binary_to_list(fxml:get_path_s(XmlP, [{elem, list_to_binary("query")}, {elem, list_to_binary("item")}, {attr, list_to_binary("jid")}])),
+              ToUid = lists:nth(1, string:tokens(ToJID, "@")),
+              ToServer = lists:nth(2, string:tokens(ToJID, "@")),
               case Subscription of
                 <<"none">> ->
                   send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat invitation!", "subscribe_request"),
-                  update_vcard_of_user(ToUid);
+                  Key = update_vcard_of_user(list_to_binary(ToUid), list_to_binary(ToServer)),
+                  ?INFO_MSG("Async task initiated to update VCard (key: ~p)!", [Key]);
                 <<"from">> ->
                   send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat acceptance!", "subscribe_accept");
                 _ ->
