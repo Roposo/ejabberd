@@ -134,7 +134,7 @@ process_iq_set(_, From, _, IQ) ->
 %  ?INFO_MSG("Type: ~p", [_Type]),
   Blockee = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, <<"item">>}, {attr, <<"jid">>}])), "@")),
   Blocker = binary_to_list(From#jid.luser),
-  Server = binary_to_list(From#jid.lserver),
+  Server = From#jid.lserver,
   case _Type of
     <<"block">> ->
       block_unblock_user(Blocker, Blockee, "true", Server);

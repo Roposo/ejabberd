@@ -603,8 +603,10 @@ modules:
   mod_chat_interceptor:
     push_url_post: "http://localhost:9020/chat/send_push"
     vcard_url_post: "http://localhost:9020/chat/get_vcard_xml"
-    block_url_get: "http://localhost:9020/v3/blockOrUnblock"  ## Test link (comment when using in Prod)
-##    block_url_get: "http://www.roposo.com/v3/blockOrUnblock" ## Prod link (uncomment when using in Prod)
+## Following is a test link (comment when using in Prod)
+    block_url_get: "http://localhost:9020/v3/blockOrUnblock"
+## Following is a Prod link (uncomment when using in Prod)
+##    block_url_get: "http://www.roposo.com/v3/blockOrUnblock"
     block_token: "850531e8-b47a-4f5b-b482-5fb7405629fb"
   mod_client_state: {}
   mod_configure: {} # requires mod_adhoc
