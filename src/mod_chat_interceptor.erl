@@ -80,8 +80,7 @@ add_timestamp(Pkt, LServer) ->
   jlib:add_delay_info(Pkt, LServer, erlang:timestamp(), <<"Chat Interceptor">>).
 
 send_push_notification_to_user(From, To, Body, Type, Server) ->
-  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, post_url_push, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-%  PostUrl = "http://localhost:9020/chat/send_push",
+  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, push_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
   ToP = string:concat("to=", To),
   FrP = string:concat("from=", From),
   BoP = string:concat("body=", Body),
@@ -89,18 +88,18 @@ send_push_notification_to_user(From, To, Body, Type, Server) ->
   Data = string:join([ToP, FrP, BoP, TyP], "&"),
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
   {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
   ok.
 
 update_vcard(User, Server) ->
 %  ?INFO_MSG("Update VCard called with arguments: ~p, ~p", [binary_to_list(User), binary_to_list(Server)]),
-  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, post_url_vcard, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-%  PostUrl = "http://localhost:9020/chat/get_vcard_xml",
+  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, vcard_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
   UserP = string:concat("user=", binary_to_list(User)),
   ImageType = string:concat("img_type=", "raw"),
   Data = string:join([UserP, ImageType], "&"),
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
   {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-%  ?INFO_MSG("Response body: ~p", [ResponseBody]),
+  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
   VCard = fxml_stream:parse_element(list_to_binary(ResponseBody)),
 %  ?INFO_MSG("Converted string to vcard successfully: ~p", [binary_to_list(fxml:element_to_binary(VCard))]),
   mod_vcard:set_vcard(User, Server, VCard),
@@ -110,30 +109,37 @@ update_vcard_of_user(User, Server) ->
   Key = rpc:async_call(node(), mod_chat_interceptor, update_vcard, [User, Server]),
   Key.
 
-block_user(Blocker, Blockee) ->
-  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
+block_unblock_user(Blocker, Blockee, Block, Server) ->
+  GetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, block_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  Token = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, block_token, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  BlockerP = string:concat("blocker=", Blocker),
+  BlockeeP = string:concat("blockee=", Blockee),
+  BlockP = string:concat("block=", Block),
+  TokenP = string:concat("token=", Token),
+  Data = string:join([BlockerP, BlockeeP, BlockP, TokenP], "&"),
+  GetUrlFull = string:concat(GetUrl, string:concat("?", Data)),
+  ?INFO_MSG("Sending get request to ~s", [GetUrlFull]),
+%  {Flag, {_, _, ResponseBody}} = httpc:request(get, {GetUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  {Flag, {_, _, ResponseBody}} = httpc:request(GetUrlFull),
+  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
+%  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
   ok.
 
-unblock_user(Unblocker, Unblockee) ->
-  ?INFO_MSG("**************** ~p has unblocked ~p ****************~n~n", [Unblocker, Unblockee]),
-  ok.
-
-process_iq_set(_, From, To, IQ) ->
+process_iq_set(_, From, _, IQ) ->
 %  ?INFO_MSG("~n**************** process_iq_set ****************~n", []),
   XmlP = IQ#iq.sub_el,
-  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
+%  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
 %  ?INFO_MSG("XML: ~p", [XmlStr]),
   {_Xmlel, _Type, _Details, _Body} = XmlP,
 %  ?INFO_MSG("Type: ~p", [_Type]),
+  Blockee = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, <<"item">>}, {attr, <<"jid">>}])), "@")),
+  Blocker = binary_to_list(From#jid.luser),
+  Server = binary_to_list(From#jid.lserver),
   case _Type of
     <<"block">> ->
-      Blockee = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, <<"item">>}, {attr, <<"jid">>}])), "@")),
-      Blocker = binary_to_list(From#jid.luser),
-      block_user(Blocker, Blockee);
+      block_unblock_user(Blocker, Blockee, "true", Server);
     <<"unblock">> ->
-      Unblockee = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, <<"item">>}, {attr, <<"jid">>}])), "@")),
-      Unblocker = binary_to_list(From#jid.luser),
-      unblock_user(Unblocker, Unblockee);
+      block_unblock_user(Blocker, Blockee, "false", Server);
     _ ->
       ok
   end,
@@ -142,7 +148,7 @@ process_iq_set(_, From, To, IQ) ->
 on_user_send_packet(Pkt, C2SState, JID, Peer) ->
 %  ?INFO_MSG("Inside on_user_send_packet...", []),
   XmlP = Pkt,
-  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
+%  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
 %  ?INFO_MSG("**************** on_user_send_packet Packet string: ~p ****************", [XmlStr]),
   {_Xmlel, _Type, _Details, _Body} = XmlP,
 %  ?INFO_MSG("Packet type: ~p", [Type]),
@@ -157,7 +163,7 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
             <<"">> ->
               XmlN = XmlP;
             _ ->
-              BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
+%              BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
 %              ?INFO_MSG("Message modified to: ~p", [BodyR]),
 %              XmlN = add_timestamp(fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP), Peer#jid.lserver)
               XmlN = add_timestamp(XmlP, Peer#jid.lserver)
@@ -387,6 +393,6 @@ chat_to_text_file(File, Data) ->
 %      file:write(IO, "\n"),
       file:close( IO );
     false ->
-      LTB = list_to_binary(File)
+      ok
   end.
 
