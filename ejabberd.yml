@@ -600,7 +600,9 @@ modules:
   mod_blocking: {} # requires mod_privacy
   mod_caps: {}
   mod_carboncopy: {}
-  mod_chat_interceptor: {}
+  mod_chat_interceptor:
+    post_url_push: "http://localhost:9020/chat/send_push"
+    post_url_vcard: "http://localhost:9020/chat/get_vcard_xml"
   mod_client_state: {}
   mod_configure: {} # requires mod_adhoc
   mod_disco: {}

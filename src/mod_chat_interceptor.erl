@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/4, update_vcard/2]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, process_iq_set/4]).
@@ -79,8 +79,9 @@ add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
   jlib:add_delay_info(Pkt, LServer, erlang:timestamp(), <<"Chat Interceptor">>).
 
-send_push_notification_to_user(From, To, Body, Type) ->
-  PostUrl = "http://localhost:9020/chat/send_push",
+send_push_notification_to_user(From, To, Body, Type, Server) ->
+  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, post_url_push, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+%  PostUrl = "http://localhost:9020/chat/send_push",
   ToP = string:concat("to=", To),
   FrP = string:concat("from=", From),
   BoP = string:concat("body=", Body),
@@ -92,7 +93,8 @@ send_push_notification_to_user(From, To, Body, Type) ->
 
 update_vcard(User, Server) ->
 %  ?INFO_MSG("Update VCard called with arguments: ~p, ~p", [binary_to_list(User), binary_to_list(Server)]),
-  PostUrl = "http://localhost:9020/chat/get_vcard_xml",
+  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, post_url_vcard, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+%  PostUrl = "http://localhost:9020/chat/get_vcard_xml",
   UserP = string:concat("user=", binary_to_list(User)),
   ImageType = string:concat("img_type=", "raw"),
   Data = string:join([UserP, ImageType], "&"),
@@ -292,11 +294,11 @@ task_chat({From, To, XmlP} = Packet) ->
               ToServer = lists:nth(2, string:tokens(ToJID, "@")),
               case Subscription of
                 <<"none">> ->
-                  send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat invitation!", "subscribe_request"),
+                  send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat invitation!", "subscribe_request", list_to_binary(ToServer)),
                   Key = update_vcard_of_user(list_to_binary(ToUid), list_to_binary(ToServer)),
                   ?INFO_MSG("Async task initiated to update VCard (key: ~p)!", [Key]);
                 <<"from">> ->
-                  send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat acceptance!", "subscribe_accept");
+                  send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat acceptance!", "subscribe_accept", list_to_binary(ToServer));
                 _ ->
                   ok
               end;
