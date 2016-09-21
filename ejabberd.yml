@@ -604,7 +604,7 @@ modules:
     push_url_post: "http://localhost:9020/chat/send_push"
     vcard_url_post: "http://localhost:9020/chat/get_vcard_xml"
 ## Following is a test link (comment when using in Prod)
-    block_url_get: "http://localhost:9020/v3/blockOrUnblock"
+    block_url_get: "http://localhost:9020/chat/block_unblock"
 ## Following is a Prod link (uncomment when using in Prod)
 ##    block_url_get: "http://www.roposo.com/v3/blockOrUnblock"
     block_token: "850531e8-b47a-4f5b-b482-5fb7405629fb"
@@ -646,7 +646,7 @@ modules:
     access_max_user_messages: max_user_offline_messages
   mod_offline_post:
     auth_token: "secret-token"
-    post_url: "http://localhost:9000/chat/send_push"
+    post_url: "http://localhost:9020/chat/send_push"
   mod_ping:
     send_pings: true
     ping_interval: 5
@@ -655,7 +655,8 @@ modules:
   ## mod_pres_counter:
   ##   count: 5
   ##   interval: 60
-  mod_privacy: {}
+  mod_privacy:
+    db_type: roposo
   mod_private: {}
   ## mod_proxy65: {}
   mod_pubsub: 
