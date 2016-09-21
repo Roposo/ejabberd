@@ -108,10 +108,10 @@ listitem_list_to_uid_list(List) ->
 %    ok.
 
 block_unblock_user(Blocker, Blockee, Block, Server) ->
-%  GetUrl = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-  GetUrl = "http://localhost:9020/chat/block_unblock",
-%  Token = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_token, fun(S) -> iolist_to_binary(S) end, "")),
-  Token = "",
+  GetUrl = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+%  GetUrl = "http://localhost:9020/chat/block_unblock",
+  Token = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_token, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+%  Token = "",
   BlockerP = string:concat("blocker=", Blocker),
   BlockeeP = string:concat("blockee=", Blockee),
   BlockP = string:concat("block=", Block),
