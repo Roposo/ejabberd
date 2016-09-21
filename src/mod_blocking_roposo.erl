@@ -6,11 +6,13 @@
 %%% @end
 %%% Created : 20 Sep 2016 by Vishal Singh <vishal@roposo.com>
 %%%-------------------------------------------------------------------
+
 -module(mod_blocking_roposo).
 
 -behaviour(mod_blocking).
 
 %% API
+
 -export([process_blocklist_block/3, unblock_by_filter/3,
 	 process_blocklist_get/2]).
 
@@ -21,61 +23,67 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
 process_blocklist_block(LUser, LServer, Filter) ->
-    F = fun () ->
-		Default = case mod_privacy_sql:sql_get_default_privacy_list_t(LUser) of
-			      {selected, []} ->
-				  Name = <<"Blocked contacts">>,
-				  case mod_privacy_sql:sql_get_privacy_list_id_t(LUser, Name) of
-				      {selected, []} ->
-					  mod_privacy_sql:sql_add_privacy_list(LUser, Name);
-				      {selected, [{_ID}]} ->
-					  ok
-				  end,
-				  mod_privacy_sql:sql_set_default_privacy_list(LUser, Name),
-				  Name;
-			      {selected, [{Name}]} -> Name
-			  end,
-		{selected, [{ID}]} =
-		    mod_privacy_sql:sql_get_privacy_list_id_t(LUser, Default),
-		case mod_privacy_sql:sql_get_privacy_list_data_by_id_t(ID) of
-		    {selected, RItems = [_ | _]} ->
-			List = lists:flatmap(fun mod_privacy_sql:raw_to_item/1, RItems);
-		    _ ->
-			List = []
-		end,
-		NewList = Filter(List),
-		NewRItems = lists:map(fun mod_privacy_sql:item_to_raw/1,
-				      NewList),
-		mod_privacy_sql:sql_set_privacy_list(ID, NewRItems),
-		{ok, Default, NewList}
-	end,
-    ejabberd_sql:sql_transaction(LServer, F).
+    List = process_blocklist_get(LUser, LServer),
+    UIDList = listitem_list_to_uid_list(List),
+    ?INFO_MSG("Old UID list: ~p", [UIDList]),
+    NewList = Filter(List),
+    NewUIDList = listitem_list_to_uid_list(NewList),
+    ?INFO_MSG("New UID list: ~p", [NewUIDList]),
+    lists:foreach(fun (UID) ->
+                    case lists:member(UID, UIDList) of
+                      true ->
+                        ok;
+                      false ->
+                        block_unblock_user(binary_to_list(LUser), UID, "true", binary_to_list(LServer))
+                    end
+                  end,
+                  NewUIDList),
+    Default = <<"Blocked contacts">>,
+    {atomic, {ok, Default, NewList}}.
 
 unblock_by_filter(LUser, LServer, Filter) ->
-    F = fun () ->
-		case mod_privacy_sql:sql_get_default_privacy_list_t(LUser) of
-		    {selected, []} -> ok;
-		    {selected, [{Default}]} ->
-			{selected, [{ID}]} =
-			    mod_privacy_sql:sql_get_privacy_list_id_t(LUser, Default),
-			case mod_privacy_sql:sql_get_privacy_list_data_by_id_t(ID) of
-			    {selected, RItems = [_ | _]} ->
-				List = lists:flatmap(fun mod_privacy_sql:raw_to_item/1,
-						     RItems),
-				NewList = Filter(List),
-				NewRItems = lists:map(fun mod_privacy_sql:item_to_raw/1,
-						      NewList),
-				mod_privacy_sql:sql_set_privacy_list(ID, NewRItems),
-				{ok, Default, NewList};
-			    _ -> ok
-			end;
-		    _ -> ok
-		end
-	end,
-    ejabberd_sql:sql_transaction(LServer, F).
+    List = process_blocklist_get(LUser, LServer),
+    UIDList = listitem_list_to_uid_list(List),
+    ?INFO_MSG("Old UID list: ~p", [UIDList]),
+    NewList = Filter(List),
+    NewUIDList = listitem_list_to_uid_list(NewList),
+    ?INFO_MSG("New UID list: ~p", [NewUIDList]),
+    lists:foreach(fun (UID) ->
+                    case lists:member(UID, NewUIDList) of
+                      true ->
+                        ok;
+                      false ->
+                        block_unblock_user(binary_to_list(LUser), UID, "false", binary_to_list(LServer))
+                    end
+                  end,
+                  UIDList),
+    Default = <<"Blocked contacts">>,
+    {atomic, {ok, Default, NewList}}.
 
-uid_list_to_listitem_list([], Server) ->
+process_blocklist_get(LUser, LServer) ->
+    PostUrl = "http://localhost:9020/chat/get_block_list",
+    UserP = string:concat("user=", binary_to_list(LUser)),
+    Data = string:join([UserP], "&"),
+    ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
+    {_, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+    ?INFO_MSG("Blocked list for ~s: ~s", [LUser, ResponseBody]),
+    ResponseLen = string:len(ResponseBody),
+    if
+      ResponseLen > 2 -> [BlockedUsers] = string:tokens(ResponseBody, "[]");
+      true -> BlockedUsers = ""
+    end,
+%    [BlockedUsers] = string:tokens(ResponseBody, "[]"),
+    ?INFO_MSG("Blocked users list: ~p", [BlockedUsers]),
+    UIDs = string:tokens(BlockedUsers, ","),
+    uid_list_to_listitem_list(UIDs, binary_to_list(LServer)).
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+uid_list_to_listitem_list([], _) ->
     [];
 uid_list_to_listitem_list([UID | RemainingUIDs], Server) ->
     ?INFO_MSG("UID: ~p", [UID]),
@@ -84,18 +92,35 @@ uid_list_to_listitem_list([UID | RemainingUIDs], Server) ->
     ?INFO_MSG("JID string: ~p", [jid:to_string(JID)]),
     [#listitem{type = jid, action = deny, value = JID, match_all = true} | uid_list_to_listitem_list(RemainingUIDs, Server)].
 
-process_blocklist_get(LUser, LServer) ->
-    PostUrl = "http://localhost:9020/chat/get_block_list",
-    UserP = string:concat("user=", binary_to_list(LUser)),
-    Data = string:join([UserP], "&"),
-    ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-    {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-    ?INFO_MSG("Blocked list for ~s: ~s", [LUser, ResponseBody]),
-    [BlockedUsers] = string:tokens(ResponseBody, "[]"),
-    ?INFO_MSG("Blocked users list: ~p", [BlockedUsers]),
-    UIDs = string:tokens(BlockedUsers, ","),
-    uid_list_to_listitem_list(UIDs, binary_to_list(LServer)).
+listitem_list_to_uid_list(List) ->
+    lists:map(fun (Item) ->
+                #listitem{type = jid, value = {User, _, _}} = Item,
+                ?INFO_MSG("UID in item: ~p", [User]),
+                binary_to_list(User)
+              end,
+              List).
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+%blocked_uids_from_lists(List, NewList) ->
+%    UIDList = lists:sort(listitem_list_to_uid_list(List)),
+%    ?INFO_MSG("UID list: ~p", [UIDList]),
+%    NewUIDList = lists:sort(listitem_list_to_uid_list(NewList)),
+%    ?INFO_MSG("New UID list: ~p", [NewUIDList]),
+%    ok.
+
+block_unblock_user(Blocker, Blockee, Block, Server) ->
+%  GetUrl = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  GetUrl = "http://localhost:9020/chat/block_unblock",
+%  Token = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_token, fun(S) -> iolist_to_binary(S) end, "")),
+  Token = "",
+  BlockerP = string:concat("blocker=", Blocker),
+  BlockeeP = string:concat("blockee=", Blockee),
+  BlockP = string:concat("block=", Block),
+  TokenP = string:concat("token=", Token),
+  Data = string:join([BlockerP, BlockeeP, BlockP, TokenP], "&"),
+  GetUrlFull = string:concat(GetUrl, string:concat("?", Data)),
+  ?INFO_MSG("Sending get request to ~s", [GetUrlFull]),
+%  {Flag, {_, _, ResponseBody}} = httpc:request(get, {GetUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  {Flag, {_, _, ResponseBody}} = httpc:request(GetUrlFull),
+  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
+%  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
+  ok.
