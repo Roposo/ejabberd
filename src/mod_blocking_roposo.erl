@@ -36,7 +36,7 @@ process_blocklist_block(LUser, LServer, Filter) ->
                       true ->
                         ok;
                       false ->
-                        block_unblock_user(binary_to_list(LUser), UID, "true", binary_to_list(LServer))
+                        block_unblock_user(binary_to_list(LUser), UID, "true", LServer)
                     end
                   end,
                   NewUIDList),
@@ -55,7 +55,7 @@ unblock_by_filter(LUser, LServer, Filter) ->
                       true ->
                         ok;
                       false ->
-                        block_unblock_user(binary_to_list(LUser), UID, "false", binary_to_list(LServer))
+                        block_unblock_user(binary_to_list(LUser), UID, "false", LServer)
                     end
                   end,
                   UIDList),
@@ -63,7 +63,8 @@ unblock_by_filter(LUser, LServer, Filter) ->
     {atomic, {ok, Default, NewList}}.
 
 process_blocklist_get(LUser, LServer) ->
-    PostUrl = "http://localhost:9020/chat/get_block_list",
+%    PostUrl = "http://localhost:9020/chat/get_block_list",
+    PostUrl = binary_to_list(gen_mod:get_module_opt(LServer, mod_chat_interceptor, block_list_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
     UserP = string:concat("user=", binary_to_list(LUser)),
     Data = string:join([UserP], "&"),
     ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
