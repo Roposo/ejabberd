@@ -94,8 +94,9 @@ send_push_notification_to_user(From, To, Body, Type, Server) ->
 update_vcard(User, Server) ->
 %  ?INFO_MSG("Update VCard called with arguments: ~p, ~p", [binary_to_list(User), binary_to_list(Server)]),
   PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, vcard_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  ImageTypeValue = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, vcard_image_type, fun(S) -> iolist_to_binary(S) end, list_to_binary("raw"))),
   UserP = string:concat("user=", binary_to_list(User)),
-  ImageType = string:concat("img_type=", "raw"),
+  ImageType = string:concat("img_type=", ImageTypeValue),
   Data = string:join([UserP, ImageType], "&"),
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
   {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
