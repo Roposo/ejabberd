@@ -109,21 +109,21 @@ update_vcard_of_user(User, Server) ->
   Key = rpc:async_call(node(), mod_chat_interceptor, update_vcard, [User, Server]),
   Key.
 
-block_unblock_user(Blocker, Blockee, Block, Server) ->
-  GetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, block_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-  Token = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, block_token, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-  BlockerP = string:concat("blocker=", Blocker),
-  BlockeeP = string:concat("blockee=", Blockee),
-  BlockP = string:concat("block=", Block),
-  TokenP = string:concat("token=", Token),
-  Data = string:join([BlockerP, BlockeeP, BlockP, TokenP], "&"),
-  GetUrlFull = string:concat(GetUrl, string:concat("?", Data)),
-  ?INFO_MSG("Sending get request to ~s", [GetUrlFull]),
-%  {Flag, {_, _, ResponseBody}} = httpc:request(get, {GetUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-  {Flag, {_, _, ResponseBody}} = httpc:request(GetUrlFull),
-  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
-%  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
-  ok.
+%block_unblock_user(Blocker, Blockee, Block, Server) ->
+%  GetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, block_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+%  Token = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, block_token, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+%  BlockerP = string:concat("blocker=", Blocker),
+%  BlockeeP = string:concat("blockee=", Blockee),
+%  BlockP = string:concat("block=", Block),
+%  TokenP = string:concat("token=", Token),
+%  Data = string:join([BlockerP, BlockeeP, BlockP, TokenP], "&"),
+%  GetUrlFull = string:concat(GetUrl, string:concat("?", Data)),
+%  ?INFO_MSG("Sending get request to ~s", [GetUrlFull]),
+%%  {Flag, {_, _, ResponseBody}} = httpc:request(get, {GetUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+%  {Flag, {_, _, ResponseBody}} = httpc:request(GetUrlFull),
+%  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
+%%  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
+%  ok.
 
 process_iq_set(_, From, _, IQ) ->
 %  ?INFO_MSG("~n**************** process_iq_set ****************~n", []),
@@ -135,14 +135,14 @@ process_iq_set(_, From, _, IQ) ->
   Blockee = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, <<"item">>}, {attr, <<"jid">>}])), "@")),
   Blocker = binary_to_list(From#jid.luser),
   Server = From#jid.lserver,
-  case _Type of
-    <<"block">> ->
-      block_unblock_user(Blocker, Blockee, "true", Server);
-    <<"unblock">> ->
-      block_unblock_user(Blocker, Blockee, "false", Server);
-    _ ->
-      ok
-  end,
+%  case _Type of
+%    <<"block">> ->
+%      block_unblock_user(Blocker, Blockee, "true", Server);
+%    <<"unblock">> ->
+%      block_unblock_user(Blocker, Blockee, "false", Server);
+%    _ ->
+%      ok
+%  end,
   XmlP.
 
 on_user_send_packet(Pkt, C2SState, JID, Peer) ->
