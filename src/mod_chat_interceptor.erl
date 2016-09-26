@@ -81,10 +81,11 @@ depends(_Host, _Opts) ->
 mod_opt_type(push_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(vcard_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(vcard_image_type) -> fun iolist_to_binary/1;
-mod_opt_type(block_url_get) -> fun iolist_to_binary/1;
-mod_opt_type(block_token) -> fun iolist_to_binary/1;
+mod_opt_type(block_url_post) -> fun iolist_to_binary/1;
+mod_opt_type(unblock_url_post) -> fun iolist_to_binary/1;
+mod_opt_type(block_unblock_token) -> fun iolist_to_binary/1;
 mod_opt_type(block_list_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_get, block_token].
+mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post].
 
 add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),

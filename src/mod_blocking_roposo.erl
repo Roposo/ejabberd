@@ -36,7 +36,7 @@ process_blocklist_block(LUser, LServer, Filter) ->
                       true ->
                         ok;
                       false ->
-                        block_unblock_user(binary_to_list(LUser), UID, "true", LServer)
+                        block_user(binary_to_list(LUser), UID, LServer)
                     end
                   end,
                   NewUIDList),
@@ -55,7 +55,7 @@ unblock_by_filter(LUser, LServer, Filter) ->
                       true ->
                         ok;
                       false ->
-                        block_unblock_user(binary_to_list(LUser), UID, "false", LServer)
+                        unblock_user(binary_to_list(LUser), UID, LServer)
                     end
                   end,
                   UIDList),
@@ -108,20 +108,29 @@ listitem_list_to_uid_list(List) ->
 %    ?INFO_MSG("New UID list: ~p", [NewUIDList]),
 %    ok.
 
-block_unblock_user(Blocker, Blockee, Block, Server) ->
-  GetUrl = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-%  GetUrl = "http://localhost:9020/chat/block_unblock",
-  Token = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_token, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-%  Token = "",
-  BlockerP = string:concat("blocker=", Blocker),
-  BlockeeP = string:concat("blockee=", Blockee),
-  BlockP = string:concat("block=", Block),
-  TokenP = string:concat("token=", Token),
-  Data = string:join([BlockerP, BlockeeP, BlockP, TokenP], "&"),
-  GetUrlFull = string:concat(GetUrl, string:concat("?", Data)),
-  ?INFO_MSG("Sending get request to ~s", [GetUrlFull]),
-%  {Flag, {_, _, ResponseBody}} = httpc:request(get, {GetUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-  {Flag, {_, _, ResponseBody}} = httpc:request(GetUrlFull),
+block_user(Blocker, Blockee, Server) ->
+  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  Token = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_unblock_token, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  BlockerP = "\"blocker\":\"" ++ Blocker ++ "\"",
+  BlockeeP = "\"blockee\":\"" ++ Blockee ++ "\"",
+  TokenP = "\"token\":\"" ++ Token ++ "\"",
+  Data = "{" ++ string:join([BlockerP, BlockeeP, TokenP], ",") ++ "}",
+  ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [{"Content-Type", "application/json"}], "application/raw", Data}, [], []),
   ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
 %  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
+  ok.
+
+unblock_user(Blocker, Blockee, Server) ->
+  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, unblock_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  PostUrlFull = string:join([PostUrl, Blockee, Blocker], "/"),
+  Token = binary_to_list(gen_mod:get_module_opt(Server, mod_chat_interceptor, block_unblock_token, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  BlockerP = "\"blocker\":\"" ++ Blocker ++ "\"",
+  BlockeeP = "\"blockee\":\"" ++ Blockee ++ "\"",
+  TokenP = "\"token\":\"" ++ Token ++ "\"",
+  Data = "{" ++ string:join([BlockerP, BlockeeP, TokenP], ",") ++ "}",
+  ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrlFull, Data]),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrlFull, [{"Content-Type", "application/json"}], "application/raw", Data}, [], []),
+  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
+%  ?INFO_MSG("**************** ~p has unblocked ~p ****************~n~n", [Blocker, Blockee]),
   ok.
