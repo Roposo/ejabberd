@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
@@ -77,6 +77,13 @@ stop(Host) ->
 
 depends(_Host, _Opts) ->
     [].
+
+mod_opt_type(push_url_post) -> fun iolist_to_binary/1;
+mod_opt_type(vcard_url_post) -> fun iolist_to_binary/1;
+mod_opt_type(vcard_image_type) -> fun iolist_to_binary/1;
+mod_opt_type(block_url_get) -> fun iolist_to_binary/1;
+mod_opt_type(block_token) -> fun iolist_to_binary/1;
+mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_get, block_token].
 
 add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
