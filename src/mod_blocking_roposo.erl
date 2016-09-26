@@ -116,7 +116,7 @@ block_user(Blocker, Blockee, Server) ->
   TokenP = "\"token\":\"" ++ Token ++ "\"",
   Data = "{" ++ string:join([BlockerP, BlockeeP, TokenP], ",") ++ "}",
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [{"Content-Type", "application/json"}], "application/raw", Data}, [], []),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []),
   ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
 %  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
   ok.
@@ -130,7 +130,7 @@ unblock_user(Blocker, Blockee, Server) ->
   TokenP = "\"token\":\"" ++ Token ++ "\"",
   Data = "{" ++ string:join([BlockerP, BlockeeP, TokenP], ",") ++ "}",
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrlFull, Data]),
-  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrlFull, [{"Content-Type", "application/json"}], "application/raw", Data}, [], []),
+  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrlFull, [{"Content-Type", "application/json"}], "application/json", Data}, [], []),
   ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
 %  ?INFO_MSG("**************** ~p has unblocked ~p ****************~n~n", [Blocker, Blockee]),
   ok.
