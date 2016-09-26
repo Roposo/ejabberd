@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
@@ -74,6 +74,9 @@ stop(Host) ->
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
   ok.
+
+depends(_Host, _Opts) ->
+    [].
 
 add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
@@ -146,7 +149,7 @@ update_vcard_of_user(User, Server) ->
 %  end,
 %  XmlP.
 
-on_user_send_packet(Pkt, C2SState, JID, Peer) ->
+on_user_send_packet(Pkt, _, _, Peer) ->
 %  ?INFO_MSG("Inside on_user_send_packet...", []),
   XmlP = Pkt,
 %  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
@@ -180,16 +183,16 @@ on_user_send_packet(Pkt, C2SState, JID, Peer) ->
 %  Pkt.
   XmlN.
 
-on_update_presence(Packet, User, Server) ->
+on_update_presence(Packet, _, _) ->
   File = "chat_history.log",
   chat_to_text_file(File, "\n****** c2s_update_presence ******\n"),
   Packet.
 
-on_filter_group_chat_presence_packet(Packet, MUCState, RoomJID, From, FromNick) ->
+on_filter_group_chat_presence_packet(Packet, _, RoomJID, From, FromNick) ->
   on_filter_group_chat_presence_packet_helper(Packet, RoomJID, From, FromNick).
 %  Packet.
 
-on_filter_group_chat_presence_packet_helper(Packet, RoomJID, From, FromNick) ->
+on_filter_group_chat_presence_packet_helper(Packet, _, _, FromNick) ->
   File = "chat_history.log",
   chat_to_text_file(File, "\n****** entering muc_filter_presence ******\n"),
   XmlP = Packet,
@@ -210,8 +213,8 @@ on_filter_group_chat_presence_packet_helper(Packet, RoomJID, From, FromNick) ->
           ResponseBody = post_to_server(FromNick, To, <<"leave">>, "presence", To, <<"Sample">>);
         _ ->
           ResponseBody = post_to_server(FromNick, To, <<"join">>, "presence", To, <<"Sample">>)
-      end,
-      update_pub_sub_node(RoomJID, From, Type)
+      end
+%      update_pub_sub_node(RoomJID, From, Type)
   end,
   case string:equal(ResponseBody, "Success") of
     true ->
@@ -221,11 +224,11 @@ on_filter_group_chat_presence_packet_helper(Packet, RoomJID, From, FromNick) ->
       chat_to_text_file(File, "\n****** Skipping presence packet and exiting muc_filter_presence ******\n")
   end.
 
-update_pub_sub_node(RoomJID, From, Type) ->
+%update_pub_sub_node(RoomJID, _, _) ->
 %  Do something!
-  RoomJID.
+%  RoomJID.
 
-on_filter_group_chat_packet(Packet, MUCState, RoomJID, From, FromNick) ->
+on_filter_group_chat_packet(Packet, _, _, _, _) ->
   File = "chat_history.log",
   chat_to_text_file(File, "\n****** inside muc_filter_message ******\n"),
 %  on_filter_packet(Packet).
@@ -247,7 +250,7 @@ on_filter_packet(Packet) ->
   ?INFO_MSG("************ Packet processing ends ************~n~n", []),
   PacketN.
 
-task_chat({From, To, XmlP} = Packet) ->
+task_chat({From, To, XmlP}) ->
   XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
   ?INFO_MSG("XML begins:", []),
   ?INFO_MSG("~p", [XmlStr]),
@@ -263,15 +266,15 @@ task_chat({From, To, XmlP} = Packet) ->
       STB = fxml:get_subtag(XmlP, <<"body">>),
       case STB of
         false ->
-          Body = <<"">>,
-          XmlN = XmlP,
+%          Body = <<"">>,
+%          XmlN = XmlP,
           ProcessPacket = true,
           ToN = To;
         _ ->
           Body = fxml:get_tag_cdata(STB),
           ?INFO_MSG("Message body: ~p", [binary_to_list(Body)]),
-          BodyR = list_to_binary(lists:reverse(binary_to_list(Body))),
-          XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP),
+%          BodyR = list_to_binary(lists:reverse(binary_to_list(Body))),
+%          XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP),
 %          ToN = jid:replace_resource(To, <<"">>),
           ToN = To,
           Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
@@ -332,19 +335,19 @@ task_chat({From, To, XmlP} = Packet) ->
       ?INFO_MSG("Skipping packet", [])
   end.
 
-get_to_list_from_json_string(Body) ->
+%get_to_list_from_json_string(Body) ->
 %  File = "chat_history.log",
-  Map = jiffy:decode(Body, [return_maps]),
-  DetMap = maps:get(<<"det">>, Map),
-  MapArray = maps:get(<<"to">>, DetMap),
-  ToList = get_nickname_list_from_map_array(MapArray),
-  ToList.
+%  Map = jiffy:decode(Body, [return_maps]),
+%  DetMap = maps:get(<<"det">>, Map),
+%  MapArray = maps:get(<<"to">>, DetMap),
+%  ToList = get_nickname_list_from_map_array(MapArray),
+%  ToList.
 
-get_nickname_list_from_map_array([Head|Rest]) ->
-  HeadAsList = binary_to_list(maps:get(<<"nickname">>, Head)),
-  lists:append([HeadAsList], get_nickname_list_from_map_array(Rest));
-get_nickname_list_from_map_array([]) ->
-  [].
+%get_nickname_list_from_map_array([Head|Rest]) ->
+%  HeadAsList = binary_to_list(maps:get(<<"nickname">>, Head)),
+%  lists:append([HeadAsList], get_nickname_list_from_map_array(Rest));
+%get_nickname_list_from_map_array([]) ->
+%  [].
 
 %get_text_from_json_string(Body) ->
 %  Map = jiffy:decode(Body, [return_maps]),
