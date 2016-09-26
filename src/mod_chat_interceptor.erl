@@ -272,7 +272,8 @@ task_chat({From, To, XmlP} = Packet) ->
           ?INFO_MSG("Message body: ~p", [binary_to_list(Body)]),
           BodyR = list_to_binary(lists:reverse(binary_to_list(Body))),
           XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP),
-          ToN = jid:replace_resource(To, <<"">>),
+%          ToN = jid:replace_resource(To, <<"">>),
+          ToN = To,
           Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
           case Type of
             <<"groupchat">> ->
