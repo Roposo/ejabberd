@@ -608,7 +608,7 @@ modules:
     unblock_url_post: "http://localhost:9020/chat/unblock"
 ## Following are 2 Prod link (uncomment when using in Prod)
 ##    block_url_post: "http://www.roposo.com/v3/activity/chatblock"
-##    unblock_url_post: "http://www.roposo.com/v3/chatdelete/activity/blocked"
+##    unblock_url_post: "http://www.roposo.com/v3/activity/chatdelete/blocked"
     block_unblock_token: "850531e8-b47a-4f5b-b482-5fb7405629fb"
     block_list_url_post: "http://localhost:9020/chat/get_block_list"
     vcard_image_type: "raw"
