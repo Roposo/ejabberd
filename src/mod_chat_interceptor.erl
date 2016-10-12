@@ -99,8 +99,13 @@ send_push_notification_to_user(From, To, Body, Type, Server) ->
   TyP = string:concat("type=", Type),
   Data = string:join([ToP, FrP, BoP, TyP], "&"),
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
+%  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  Response = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  case Response of
+    {ok, {_, _, ResponseBody}} -> ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]);
+    {error, ErrorReason} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+    _ -> ok
+  end,
   ok.
 
 update_vcard(User, Server) ->
@@ -111,11 +116,17 @@ update_vcard(User, Server) ->
   ImageType = string:concat("img_type=", ImageTypeValue),
   Data = string:join([UserP, ImageType], "&"),
   ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
-  VCard = fxml_stream:parse_element(list_to_binary(ResponseBody)),
-%  ?INFO_MSG("Converted string to vcard successfully: ~p", [binary_to_list(fxml:element_to_binary(VCard))]),
-  mod_vcard:set_vcard(User, Server, VCard),
+%  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  Response = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  case Response of
+    {ok, {_, _, ResponseBody}} ->
+      ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
+      VCard = fxml_stream:parse_element(list_to_binary(ResponseBody)),
+%      ?INFO_MSG("Converted string to vcard successfully: ~p", [binary_to_list(fxml:element_to_binary(VCard))]),
+      mod_vcard:set_vcard(User, Server, VCard);
+    {error, ErrorReason} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+    _ -> ok
+  end,
   ok.
 
 update_vcard_of_user(User, Server) ->
@@ -385,18 +396,29 @@ post_to_server(From, To, Body, ChatType, GroupChatFullName, ID) ->
   chat_to_text_file(File, "\n\n"),
   HTTPOptions = [],
   Options = [],
-  {Flag, {_, _, ResponseBody}} = httpc:request(Method, {URL, Header, Type, Data}, HTTPOptions, Options),
-  File = "chat_history.log",
-  case Flag of
-    ok ->
-      chat_to_text_file(File, "\n****** HTTP request response \"ok\" ******\n"),
-      chat_to_text_file(File, "\n****** HTTP request response body start ******\n"),
-      chat_to_text_file(File, ResponseBody),
-      chat_to_text_file(File, "\n****** HTTP request response body end ******\n");
-    error ->
-      chat_to_text_file(File, "\n****** HTTP request response \"error\" ******\n")
-  end,
-  ResponseBody.
+%  {Flag, {_, _, ResponseBody}} = httpc:request(Method, {URL, Header, Type, Data}, HTTPOptions, Options),
+  Response = httpc:request(Method, {URL, Header, Type, Data}, HTTPOptions, Options),
+  case Response of
+    {ok, {_, _, ResponseBody}} ->
+      ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
+      ResponseBody;
+    {error, ErrorReason} ->
+      ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
+      ErrorReason;
+    _ ->
+      ok
+  end.
+%  File = "chat_history.log",
+%  case Flag of
+%    ok ->
+%      chat_to_text_file(File, "\n****** HTTP request response \"ok\" ******\n"),
+%      chat_to_text_file(File, "\n****** HTTP request response body start ******\n"),
+%      chat_to_text_file(File, ResponseBody),
+%      chat_to_text_file(File, "\n****** HTTP request response body end ******\n");
+%    error ->
+%      chat_to_text_file(File, "\n****** HTTP request response \"error\" ******\n")
+%  end,
+%  ResponseBody.
 
 chat_to_text_file(File, Data) ->
   EnableLogging = false,
