@@ -103,7 +103,7 @@ send_push_notification_to_user(From, To, Body, Type, Server) ->
   Response = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
   case Response of
     {ok, {_, _, ResponseBody}} -> ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]);
-    {error, ErrorReason} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+    {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
     _ -> ok
   end,
   ok.
@@ -124,7 +124,7 @@ update_vcard(User, Server) ->
       VCard = fxml_stream:parse_element(list_to_binary(ResponseBody)),
 %      ?INFO_MSG("Converted string to vcard successfully: ~p", [binary_to_list(fxml:element_to_binary(VCard))]),
       mod_vcard:set_vcard(User, Server, VCard);
-    {error, ErrorReason} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+    {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
     _ -> ok
   end,
   ok.
@@ -402,7 +402,7 @@ post_to_server(From, To, Body, ChatType, GroupChatFullName, ID) ->
     {ok, {_, _, ResponseBody}} ->
       ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
       ResponseBody;
-    {error, ErrorReason} ->
+    {error, {ErrorReason, _}} ->
       ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
       ErrorReason;
     _ ->

@@ -73,7 +73,7 @@ process_blocklist_get(LUser, LServer) ->
     case Response of
       {ok, {_, _, ResponseBody}} ->
         ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]);
-      {error, ErrorReason} ->
+      {error, {ErrorReason, _}} ->
         ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
         ResponseBody = "[]";
       _ ->
@@ -130,7 +130,7 @@ block_user(Blocker, Blockee, Server) ->
   Response = httpc:request(post, {PostUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []),
   case Response of
     {ok, {_, _, ResponseBody}} -> ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]);
-    {error, ErrorReason} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+    {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
     _ -> ok
   end,
 %  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
@@ -149,7 +149,7 @@ unblock_user(Blocker, Blockee, Server) ->
   Response = httpc:request(post, {PostUrlFull, [{"Content-Type", "application/json"}], "application/json", Data}, [], []),
   case Response of
     {ok, {_, _, ResponseBody}} -> ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]);
-    {error, ErrorReason} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+    {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
     _ -> ok
   end,
 %  ?INFO_MSG("**************** ~p has unblocked ~p ****************~n~n", [Blocker, Blockee]),
