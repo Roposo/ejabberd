@@ -283,20 +283,21 @@ task_chat({From, To, XmlP}) ->
   ?INFO_MSG("Packet to: ~p", [binary_to_list(ToS)]),
   case _Type of
     <<"message">> ->
+      XmlN = XmlP,
       STB = fxml:get_subtag(XmlP, <<"body">>),
       case STB of
         false ->
 %          Body = <<"">>,
 %          XmlN = XmlP,
-          ProcessPacket = true,
-          ToN = To;
+          ProcessPacket = true;
+%          ToN = To;
         _ ->
           Body = fxml:get_tag_cdata(STB),
           ?INFO_MSG("Message body: ~p", [binary_to_list(Body)]),
 %          BodyR = list_to_binary(lists:reverse(binary_to_list(Body))),
 %          XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP),
 %          ToN = jid:replace_resource(To, <<"">>),
-          ToN = To,
+%          ToN = To,
           Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
           case Type of
             <<"groupchat">> ->
@@ -312,7 +313,7 @@ task_chat({From, To, XmlP}) ->
       end;
     <<"iq">> ->
       ProcessPacket = true,
-      ToN = To,
+%      ToN = To,
       Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
       case Type of
         <<"set">> ->
@@ -335,22 +336,43 @@ task_chat({From, To, XmlP}) ->
               end;
             _ ->
               ok
+          end,
+          VCard = fxml:get_path_s(XmlP, [{elem, list_to_binary("vCard")}]),
+          case VCard of
+            <<>> ->
+              XmlN = XmlP;
+            _ ->
+              VCardPhotoType = fxml:get_path_s(VCard, [{elem, list_to_binary("PHOTO")}, {elem, list_to_binary("TYPE")}, cdata]),
+              case VCardPhotoType of
+                <<>> ->
+%                  ImageTypeValue = list_to_binary(string:concat("image/", binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, vcard_image_type, fun(S) -> iolist_to_binary(S) end, list_to_binary("url"))))),
+                  ImageTypeValue = <<"image/url">>,
+                  VCardPhotoXml = fxml:get_path_s(VCard, [{elem, list_to_binary("PHOTO")}]),
+                  VCardPhotoXmlN = fxml:append_subtags(VCardPhotoXml, [#xmlel{name = <<"TYPE">>, children = [{xmlcdata, ImageTypeValue}]}]),
+                  VCardN = fxml:replace_subtag(VCardPhotoXmlN, VCard),
+                  XmlN = fxml:replace_subtag(VCardN, XmlP),
+%                  XmlStrN = binary_to_list(fxml:element_to_binary(XmlN)),
+                  ?INFO_MSG("VCard being set to: ~p", [binary_to_list(fxml:element_to_binary(VCardN))]);
+                _ ->
+                  XmlN = XmlP
+              end
           end;
         _ ->
-          ok
+          XmlN = XmlP
       end;
     _ ->
+      XmlN = XmlP,
       ProcessPacket = true,
-      ToN = To,
+%      ToN = To,
       ok
   end,
-%  ?INFO_MSG("New XML: ~p", [binary_to_list(fxml:element_to_binary(XmlN))]),
+  ?INFO_MSG("New XML: ~p", [binary_to_list(fxml:element_to_binary(XmlN))]),
   case ProcessPacket of
     true ->
       ?INFO_MSG("Processing packet", []),
 %      Packet;
-      {From, ToN, XmlP};
-%      {From, To, XmlN};
+%      {From, ToN, XmlP};
+      {From, To, XmlN};
     false ->
       ?INFO_MSG("Skipping packet", [])
   end.
