@@ -94,7 +94,7 @@ send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->
     ReceiptId = fxml:get_tag_attr_s(<<"id">>, Packet),
     SentTo = jlib:jid_to_string(To),
     XmlBody = #xmlel{name = <<"message">>,
-                     attrs = [{<<"from">>, jlib:jid_to_string(From)}, {<<"to">>, jlib:jid_to_string(To)}],
+                     attrs = [{<<"from">>, jlib:jid_to_string(From)}, {<<"to">>, jlib:jid_to_string(To)}, {<<"type">>, <<"ser_ack">>}],
                      children = [#xmlel{name = <<"received">>,
               				attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ReceiptId}, {<<"sent_to">>, SentTo}],
               				children = []}]},
