@@ -94,9 +94,8 @@ send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->
     ReceiptId = fxml:get_tag_attr_s(<<"id">>, Packet),
     SentTo = jlib:jid_to_string(To),
     XmlBody = #xmlel{name = <<"message">>,
-              		    attrs = [{<<"from">>, From}, {<<"to">>, To}],
-              		    children =
-              			[#xmlel{name = <<"received">>,
+                     attrs = [{<<"from">>, jlib:jid_to_string(From)}, {<<"to">>, jlib:jid_to_string(To)}],
+                     children = [#xmlel{name = <<"received">>,
               				attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ReceiptId}, {<<"sent_to">>, SentTo}],
               				children = []}]},
     ejabberd_router:route(jlib:string_to_jid(RegisterFromJid), RegisterToJid, XmlBody).
