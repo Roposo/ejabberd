@@ -92,11 +92,11 @@ should_acknowledge(#xmlel{}) ->
 
 send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->
     ReceiptId = fxml:get_tag_attr_s(<<"id">>, Packet),
-    SentTo = jlib:jid_to_string(To),
+%    SentTo = jlib:jid_to_string(To),
     XmlBody = #xmlel{name = <<"message">>,
                      attrs = [{<<"from">>, jlib:jid_to_string(From)}, {<<"to">>, jlib:jid_to_string(To)}],
                      children = [#xmlel{name = <<"received">>,
-              				attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ReceiptId}, {<<"sent_to">>, SentTo}],
+                                        attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ReceiptId}],
               				children = []}]},
     XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, erlang:timestamp(), <<"Chat Acknowledgement">>),
     ejabberd_router:route(jlib:string_to_jid(RegisterFromJid), RegisterToJid, XmlN).
