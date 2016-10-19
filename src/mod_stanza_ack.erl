@@ -104,6 +104,6 @@ send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->
         XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, erlang:timestamp(), <<"Chat Acknowledgement">>);
       _ ->
         TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
-        XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, fxml:get_tag_attr_s(<<"stamp">>, TimeStampValue), <<"Chat Acknowledgement">>)
+        XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, TimeStampValue, <<"Chat Acknowledgement">>)
     end,
     ejabberd_router:route(jlib:string_to_jid(RegisterFromJid), RegisterToJid, XmlN).
