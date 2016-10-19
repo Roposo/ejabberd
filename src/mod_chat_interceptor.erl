@@ -56,7 +56,7 @@ start(Host, _Opts) ->
 %%  ejabberd_hooks:add(muc_filter_presence, Host, ?MODULE, on_filter_group_chat_presence_packet, 1),
   ejabberd_hooks:add(filter_packet, global, ?MODULE, on_filter_packet, 2),
 %%  ejabberd_hooks:add(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
-  ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 87),
+  ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
 %%  capture packets received by user
 %%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
@@ -69,7 +69,7 @@ stop(Host) ->
 %%  ejabberd_hooks:delete(muc_filter_presence, Host, ?MODULE, on_filter_group_chat_presence_packet, 1),
   ejabberd_hooks:delete(filter_packet, global, ?MODULE, task, 2),
 %%  ejabberd_hooks:delete(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
-  ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 87),
+  ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
   % delete packets received by user
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),

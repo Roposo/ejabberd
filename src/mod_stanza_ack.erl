@@ -52,12 +52,12 @@
 -spec start(host(), opts()) -> ok.
 start(Host, Opts) ->
 	mod_disco:register_feature(Host, ?NS_RECEIPTS),
-	ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
+	ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 12),
 	ok.
 
 -spec stop(host()) -> ok.
 stop(Host) ->
-	ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
+	ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 12),
 	ok.
 
 %% ====================================================================
@@ -98,5 +98,12 @@ send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->
                      children = [#xmlel{name = <<"received">>,
                                         attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ReceiptId}],
               				children = []}]},
-    XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, erlang:timestamp(), <<"Chat Acknowledgement">>),
+    TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
+    case TimeStamp of
+      <<>> ->
+        XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, erlang:timestamp(), <<"Chat Acknowledgement">>);
+      _ ->
+        TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
+        XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, fxml:get_tag_attr_s(<<"stamp">>, TimeStampValue), <<"Chat Acknowledgement">>)
+    end,
     ejabberd_router:route(jlib:string_to_jid(RegisterFromJid), RegisterToJid, XmlN).
