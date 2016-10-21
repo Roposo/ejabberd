@@ -47,7 +47,7 @@
 %% API functions
 %% ====================================================================
 -export([start/2, stop/1]).
--export([on_user_send_packet/4, send_ack_response/5, should_acknowledge/1]).
+-export([on_user_send_packet/4, check_should_acknowledge_and_send_ack_response/5]).
 
 -spec start(host(), opts()) -> ok.
 start(Host, Opts) ->
@@ -60,21 +60,27 @@ stop(Host) ->
 	ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 12),
 	ok.
 
-%% ====================================================================
-%% Internal functions
-%% ====================================================================
-
 on_user_send_packet(Packet, _C2SState, From, To) ->
-    RegisterFromJid = From#jid.lserver, %used in ack stanza
+    Key = check_should_acknowledge_and_send_ack_response_async(From, To, Packet, From#jid.lserver, From),
+%    ?INFO_MSG("Async task initiated to send acknowledgement packet (key: ~p)!", [Key]),
+    Packet.
 
+check_should_acknowledge_and_send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->
     case should_acknowledge(Packet) of 
         S when (S==true) ->
-            RegisterToJid = From, %used in ack stanza
             send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid);
         false ->
             ok
     end,
     Packet.
+
+%% ====================================================================
+%% Internal functions
+%% ====================================================================
+
+check_should_acknowledge_and_send_ack_response_async(From, To, Packet, RegisterFromJid, RegisterToJid) ->
+    Key = rpc:async_call(node(), mod_stanza_ack, check_should_acknowledge_and_send_ack_response, [From, To, Packet, RegisterFromJid, RegisterToJid]),
+    Key.
 
 should_acknowledge(#xmlel{name = <<"message">>} = Packet) ->
     case {fxml:get_tag_attr_s(<<"type">>, Packet),
