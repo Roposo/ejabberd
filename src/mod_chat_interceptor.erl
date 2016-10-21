@@ -227,7 +227,10 @@ route_auto_reply(_, From, To, ID, PostUrlConfig, MessageType) ->
   case Response of
     {ok, {_, _, ResponseBody}} ->
       ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
-      route_auto_reply_to_both(ResponseBody, From, To, ID);
+      {ResponseJSON} = jiffy:decode(ResponseBody),
+      ChatBodyJSON = proplists:get_value(<<"data">>, ResponseJSON),
+      ChatBody = jiffy:encode(ChatBodyJSON),
+      route_auto_reply_to_both(ChatBody, From, To, ID);
     {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
     _ -> ok
   end.
