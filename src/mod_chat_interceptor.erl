@@ -30,7 +30,7 @@
 -export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, route_auto_reply/6]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
--export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
+-export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, on_offline_message_hook/3]).
 
 %-record(state, {config}).
 
@@ -60,6 +60,7 @@ start(Host, _Opts) ->
 %%  capture packets received by user
 %%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
+  ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 200),
   ok.
 
 stop(Host) ->
@@ -73,6 +74,7 @@ stop(Host) ->
   % delete packets received by user
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
+  ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 200),
   ok.
 
 depends(_Host, _Opts) ->
@@ -87,6 +89,33 @@ mod_opt_type(block_unblock_token) -> fun iolist_to_binary/1;
 mod_opt_type(block_list_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(auto_reply_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post, auto_reply_url_post].
+
+on_offline_message_hook(From, To, Packet) ->
+  {_Xmlel, _Type, _Details, _Body} = Packet,
+  case _Type of
+    <<"message">> ->
+      Body = fxml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
+      case Body of
+        <<>> ->
+          ok;
+        _ ->
+          {BodyJSON} = jiffy:decode(Body),
+          {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+          MessageType = proplists:get_value(<<"ty">>, BodyBlock),
+          ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
+          case MessageType of
+            <<"cs_rp">> ->
+              ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+              ?INFO_MSG("Initiating async task to send auto reply...", []),
+              Key = route_auto_reply_async(Packet, To, From, ID, auto_reply_url_post, MessageType),
+              ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
+            _ ->
+                ok
+          end
+      end;
+    _ ->
+      ok
+  end.
 
 add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
@@ -344,19 +373,19 @@ task_chat({From, To, XmlP}) ->
 %              ProcessPacket = string:equal(ResponseBody, "Success"),
 %              ToN = To;
             _ ->
-              {BodyJSON} = jiffy:decode(Body),
-              {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-              MessageType = proplists:get_value(<<"ty">>, BodyBlock),
-              ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
-              case MessageType of
-                <<"cs_rp">> ->
-                  ID = fxml:get_tag_attr_s(<<"id">>, XmlN),
-                  ?INFO_MSG("Initiating async task to send auto reply...", []),
-                  Key = route_auto_reply_async(XmlN, To, From, ID, auto_reply_url_post, MessageType),
-                  ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
-                _ ->
-                  ok
-              end,
+%              {BodyJSON} = jiffy:decode(Body),
+%              {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+%              MessageType = proplists:get_value(<<"ty">>, BodyBlock),
+%              ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
+%              case MessageType of
+%                <<"cs_rp">> ->
+%                  ID = fxml:get_tag_attr_s(<<"id">>, XmlN),
+%                  ?INFO_MSG("Initiating async task to send auto reply...", []),
+%                  Key = route_auto_reply_async(XmlN, To, From, ID, auto_reply_url_post, MessageType),
+%                  ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
+%                _ ->
+%                  ok
+%              end,
               ProcessPacket = true
           end
       end;
