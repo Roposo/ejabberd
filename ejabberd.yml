@@ -612,7 +612,7 @@ modules:
     block_unblock_token: "850531e8-b47a-4f5b-b482-5fb7405629fb"
     block_list_url_post: "http://localhost:9020/chat/get_block_list"
     vcard_image_type: "raw"
-    auto_reply_cs_rp_url_post: "http://localhost:9020/chat/get_auto_response_json"
+    auto_reply_url_post: "http://localhost:9020/chat/get_auto_response_json"
   mod_client_state: {}
   mod_configure: {} # requires mod_adhoc
   mod_disco: {}

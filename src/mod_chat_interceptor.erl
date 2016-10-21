@@ -85,7 +85,8 @@ mod_opt_type(block_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(unblock_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(block_unblock_token) -> fun iolist_to_binary/1;
 mod_opt_type(block_list_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post].
+mod_opt_type(auto_reply_url_post) -> fun iolist_to_binary/1;
+mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post, auto_reply_url_post].
 
 add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
@@ -341,7 +342,9 @@ task_chat({From, To, XmlP}) ->
 %              ToN = To;
             _ ->
               {BodyJSON} = jiffy:decode(Body),
-              MessageType = proplists:get_value(<<"ty">>, BodyJSON),
+              {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+              MessageType = proplists:get_value(<<"ty">>, BodyBlock),
+              ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
               case MessageType of
                 <<"cs_rp">> ->
                   ID = fxml:get_tag_attr_s(<<"id">>, XmlN),
