@@ -60,7 +60,7 @@ start(Host, _Opts) ->
 %%  capture packets received by user
 %%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
-  ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 200),
+  ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 12),
   ok.
 
 stop(Host) ->
@@ -74,7 +74,7 @@ stop(Host) ->
   % delete packets received by user
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
-  ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 200),
+  ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 12),
   ok.
 
 depends(_Host, _Opts) ->
