@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, route_auto_reply/6]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
@@ -169,7 +169,7 @@ update_vcard_of_user(User, Server) ->
 %  end,
 %  XmlP.
 
-on_user_send_packet(Pkt, _, _, Peer) ->
+on_user_send_packet(Pkt, _, _, To) ->
 %  ?INFO_MSG("Inside on_user_send_packet...", []),
   XmlP = Pkt,
 %  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
@@ -189,8 +189,8 @@ on_user_send_packet(Pkt, _, _, Peer) ->
             _ ->
 %              BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
 %              ?INFO_MSG("Message modified to: ~p", [BodyR]),
-%              XmlN = add_timestamp(fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP), Peer#jid.lserver)
-              XmlN = add_timestamp(XmlP, Peer#jid.lserver)
+%              XmlN = add_timestamp(fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP), To#jid.lserver)
+              XmlN = add_timestamp(XmlP, To#jid.lserver)
 %              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
           end;
         _ ->
@@ -202,6 +202,38 @@ on_user_send_packet(Pkt, _, _, Peer) ->
 %  ?INFO_MSG("Exiting on_user_send_packet...~n", []),
 %  Pkt.
   XmlN.
+
+route_auto_reply_to_both(Body, From, To, ID) ->
+  IDR = list_to_binary(binary_to_list(ID) ++ "_auto-reply"),
+%  Body = <<"{\"block\":{\"ty\":\"ct\",\"txt\":\"Auto reply is working, awesome!\"}}">>,
+  XmlReply = #xmlel{name = <<"message">>,
+                    attrs = [{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
+                    children = [#xmlel{name = <<"body">>, children = [{xmlcdata, Body}]}]},
+  ejabberd_router:route(From, To, XmlReply),
+  XmlReply2 = #xmlel{name = <<"message">>,
+                    attrs = [{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
+                    children = [#xmlel{name = <<"body">>, children = [{xmlcdata, Body}]}]},
+  ejabberd_router:route(To, From, XmlReply2).
+
+route_auto_reply(_, From, To, ID, PostUrlConfig, MessageType) ->
+  PostUrl = binary_to_list(gen_mod:get_module_opt(From#jid.lserver, ?MODULE, PostUrlConfig, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  UserP = string:concat("user=", binary_to_list(From#jid.luser)),
+  MsgTyP = string:concat("msgtype=", binary_to_list(MessageType)),
+  Data = string:join([UserP, MsgTyP], "&"),
+  ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
+%  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  Response = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  case Response of
+    {ok, {_, _, ResponseBody}} ->
+      ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
+      route_auto_reply_to_both(ResponseBody, From, To, ID);
+    {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+    _ -> ok
+  end.
+
+route_auto_reply_async(Pkt, From, To, ID, PostUrlConfig, MessageType) ->
+  Key = rpc:async_call(node(), mod_chat_interceptor, route_auto_reply, [Pkt, From, To, ID, PostUrlConfig, MessageType]),
+  Key.
 
 on_update_presence(Packet, _, _) ->
   File = "chat_history.log",
@@ -308,6 +340,17 @@ task_chat({From, To, XmlP}) ->
 %              ProcessPacket = string:equal(ResponseBody, "Success"),
 %              ToN = To;
             _ ->
+              {BodyJSON} = jiffy:decode(Body),
+              MessageType = proplists:get_value(<<"ty">>, BodyJSON),
+              case MessageType of
+                <<"cs_rp">> ->
+                  ID = fxml:get_tag_attr_s(<<"id">>, XmlN),
+                  ?INFO_MSG("Initiating async task to send auto reply...", []),
+                  Key = route_auto_reply_async(XmlN, To, From, ID, auto_reply_url_post, MessageType),
+                  ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
+                _ ->
+                  ok
+              end,
               ProcessPacket = true
           end
       end;
