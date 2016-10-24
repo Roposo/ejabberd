@@ -350,7 +350,7 @@ cart_action(From, To, BodyJSON, Action) ->
       Buyer = From#jid.luser,
       Seller = To#jid.luser,
       {BodyDet} = proplists:get_value(<<"det">>, BodyJSON),
-      ProductJSON = jiffy:encode(proplists:get_value(ProductId, BodyDet)),
+      ProductJSON = proplists:get_value(ProductId, BodyDet),
       CartActionAddUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_add_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
       Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"sdata">>,ProductJSON},{<<"token">>,Token}]}),
       ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionAddUrl, Data]),
@@ -376,6 +376,9 @@ cart_action(From, To, BodyJSON, Action) ->
     {ok, {_, _, ResponseBody}} ->
       case jiffy:decode(ResponseBody) of
         {[{<<"gsc">>,<<"700">>},_]} -> <<"Success">>;
+        {[{<<"gsc">>,<<"600">>},{<<"data">>,{DataR}}]} ->
+          ?INFO_MSG("Error: ~s", [jiffy:encode(DataR)]),
+          <<"Failure">>;
         _ -> <<"Failure">>
       end;
     {error, {ErrorReason, _}} ->
@@ -392,12 +395,13 @@ cart_get(Server, BodyJSON) ->
   Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
   CartGetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_get_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
   CartGetUrlFull = CartGetUrl ++ "/" ++ binary_to_list(Token) ++ "/" ++ binary_to_list(Buyer) ++ "/" ++ binary_to_list(Seller),
+  ?INFO_MSG("Sending get request to ~s", [CartGetUrlFull]),
   Response = httpc:request(get, {CartGetUrlFull, []}, [], []),
   case Response of
     {ok, {_, _, ResponseBody}} ->
-      case jiffy:decode(ResponseBody) of
+      case jiffy:decode(list_to_binary(ResponseBody)) of
         {[{<<"gsc">>,<<"700">>},{<<"data">>,{Data}}]} ->
-          {Det} = proplists:get_value(<<"det">>, Data),
+          Det = proplists:get_value(<<"det">>, Data),
           jiffy:encode(Det);
         _ -> <<"Failure">>
       end;
@@ -409,10 +413,10 @@ cart_get(Server, BodyJSON) ->
   end.
 
 send_cart_action_error_packet(From, To) ->
-  ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(From), binary_to_list(To)]).
+  ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(From), binary_to_list(To#jid.luser)]).
 
 send_cart_get_data_packet(From, To, Data) ->
-  ?INFO_MSG("Send cart get response packet \"~p\" from ~p to ~p", [binary_to_list(Data), binary_to_list(From), binary_to_list(To)]).
+  ?INFO_MSG("Send cart get response packet \"~p\" from ~p to ~p", [binary_to_list(Data), binary_to_list(From), binary_to_list(To#jid.luser)]).
 
 task_chat({From, To, XmlP}) ->
   XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
