@@ -432,7 +432,7 @@ send_cart_action_result_packet_async(From, To, CartActionResponse, Packet) ->
 send_cart_action_result_packet(From, To, CartActionResponse, Packet) ->
   ID = fxml:get_tag_attr_s(<<"id">>, Packet),
   IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-  Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"txt\":\"" ++ binary_to_list(CartActionResponse) ++ "\"}}"),
+  Body = list_to_binary("{\"block\":{\"ty\":\"cr_ack\",\"txt\":\"" ++ binary_to_list(CartActionResponse) ++ "\"}}"),
   XmlBody = #xmlel{name = <<"message">>,
                    attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
                    children = [#xmlel{name = <<"body">>,
@@ -450,8 +450,26 @@ send_cart_action_result_packet(From, To, CartActionResponse, Packet) ->
   end,
   ejabberd_router:route(jlib:string_to_jid(From), To, XmlN).
 
-send_cart_get_data_packet(From, To, Data) ->
-  ?INFO_MSG("Send cart get response packet \"~p\" from ~p to ~p", [binary_to_list(Data), binary_to_list(From), binary_to_list(To#jid.luser)]).
+send_cart_get_data_packet(From, To, Data, Packet) ->
+  ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+  IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
+  Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"txt\":\"" ++ binary_to_list(Data) ++ "\"}}"),
+  XmlBody = #xmlel{name = <<"message">>,
+                   attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
+                   children = [#xmlel{name = <<"body">>,
+                                      children = [{xmlcdata, Body}]},
+                               #xmlel{name = <<"received">>,
+                                      attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ID}],
+                                      children = []}]},
+  TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
+  case TimeStamp of
+    <<>> ->
+      XmlN = jlib:add_delay_info(XmlBody, From, erlang:timestamp(), <<"Cart Info">>);
+    _ ->
+      TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
+      XmlN = jlib:add_delay_info(XmlBody, From, TimeStampValue, <<"Cart Info">>)
+  end,
+  ejabberd_router:route(jlib:string_to_jid(From), To, XmlN).
 
 task_chat({From, To, XmlP}) ->
   XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
@@ -514,7 +532,7 @@ task_chat({From, To, XmlP}) ->
                       ?INFO_MSG("Error getting cart info", []);
                     DetJSON ->
 %                      ?INFO_MSG("Cart get response: ~p", [binary_to_list(CartGetResponse)]),
-                      send_cart_get_data_packet(From#jid.lserver, From, DetJSON)
+                      send_cart_get_data_packet(From#jid.lserver, From, DetJSON, XmlP)
                   end;
                 true ->
                   ProcessPacket = true
