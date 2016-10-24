@@ -374,10 +374,13 @@ cart_action(From, To, BodyJSON, Action) ->
   end,
   case Response of
     {ok, {_, _, ResponseBody}} ->
-      case jiffy:decode(ResponseBody) of
-        {[{<<"gsc">>,<<"700">>},_]} -> <<"Success">>;
-        {[{<<"gsc">>,<<"600">>},{<<"data">>,{DataR}}]} ->
-          ?INFO_MSG("Error: ~s", [jiffy:encode(DataR)]),
+      {ResponseBodyJSON} = jiffy:decode(ResponseBody),
+      GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
+      case GSCCode of
+        <<"700">> -> <<"Success">>;
+        <<"600">> ->
+          DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
+          ?INFO_MSG("Error: ~s", [DataR]),
           <<"Failure">>;
         _ -> <<"Failure">>
       end;
@@ -399,10 +402,18 @@ cart_get(Server, BodyJSON) ->
   Response = httpc:request(get, {CartGetUrlFull, []}, [], []),
   case Response of
     {ok, {_, _, ResponseBody}} ->
-      case jiffy:decode(list_to_binary(ResponseBody)) of
-        {[{<<"gsc">>,<<"700">>},{<<"data">>,{Data}}]} ->
+      ?INFO_MSG("Response body: ~p", [ResponseBody]),
+      {ResponseBodyJSON} = jiffy:decode(ResponseBody),
+      GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
+      case GSCCode of
+        <<"700">> ->
+          {Data} = proplists:get_value(<<"data">>, ResponseBodyJSON),
           Det = proplists:get_value(<<"det">>, Data),
           jiffy:encode(Det);
+        <<"600">> ->
+          DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
+          ?INFO_MSG("Error: ~s", [DataR]),
+          <<"Failure">>;
         _ -> <<"Failure">>
       end;
     {error, {ErrorReason, _}} ->
@@ -471,12 +482,14 @@ task_chat({From, To, XmlP}) ->
                       ProcessPacket = false
                   end;
                 MessageType == <<"cr_get">> ->
+%                  ?INFO_MSG("Cart get packet", []),
                   ProcessPacket = false,
                   CartGetResponse = cart_get(From#jid.lserver, BodyJSON),
                   case CartGetResponse of
                     <<"Failure">> ->
                       ?INFO_MSG("Error getting cart info", []);
                     DetJSON ->
+%                      ?INFO_MSG("Cart get response: ~p", [binary_to_list(CartGetResponse)]),
                       send_cart_get_data_packet(From#jid.lserver, From, DetJSON)
                   end;
                 true ->

@@ -617,6 +617,7 @@ modules:
     cart_action_remove_url_post: "http://localhost:9000/v3/remove-from-cart"
     cart_action_oos_url_post: "http://localhost:9000/v3/mark-oos"
     cart_get_url_get: "http://localhost:9000/v3/cart-info"
+    cart_action_token: ""
   mod_client_state: {}
   mod_configure: {} # requires mod_adhoc
   mod_disco: {}
