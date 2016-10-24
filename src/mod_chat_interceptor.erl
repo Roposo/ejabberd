@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, route_auto_reply/6]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, route_auto_reply/6, send_cart_action_result_packet/4]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, on_offline_message_hook/3]).
@@ -35,6 +35,7 @@
 %-record(state, {config}).
 
 %-define(INFO_MSG, "custom_plugin_ROPOSO").
+-define(NS_RECEIPTS, <<"urn:xmpp:receipts">>).
 
 -ifdef(TEST).
 -compile(export_all).
@@ -423,8 +424,31 @@ cart_get(Server, BodyJSON) ->
       <<"Failure">>
   end.
 
-send_cart_action_error_packet(From, To) ->
-  ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(From), binary_to_list(To#jid.luser)]).
+send_cart_action_result_packet_async(From, To, CartActionResponse, Packet) ->
+  ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(From), binary_to_list(To#jid.luser)]),
+  Key = rpc:async_call(node(), mod_chat_interceptor, send_cart_action_result_packet, [From, To, CartActionResponse, Packet]),
+  Key.
+
+send_cart_action_result_packet(From, To, CartActionResponse, Packet) ->
+  ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+  IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
+  Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"txt\":\"" ++ binary_to_list(CartActionResponse) ++ "\"}}"),
+  XmlBody = #xmlel{name = <<"message">>,
+                   attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
+                   children = [#xmlel{name = <<"body">>,
+                                      children = [{xmlcdata, Body}]},
+                               #xmlel{name = <<"received">>,
+                                      attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ID}],
+                                      children = []}]},
+  TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
+  case TimeStamp of
+    <<>> ->
+      XmlN = jlib:add_delay_info(XmlBody, From, erlang:timestamp(), <<"Cart Action Acknowledgement">>);
+    _ ->
+      TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
+      XmlN = jlib:add_delay_info(XmlBody, From, TimeStampValue, <<"Cart Action Acknowledgement">>)
+  end,
+  ejabberd_router:route(jlib:string_to_jid(From), To, XmlN).
 
 send_cart_get_data_packet(From, To, Data) ->
   ?INFO_MSG("Send cart get response packet \"~p\" from ~p to ~p", [binary_to_list(Data), binary_to_list(From), binary_to_list(To#jid.luser)]).
@@ -474,11 +498,11 @@ task_chat({From, To, XmlP}) ->
               if
                 MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">> ->
                   CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
+                  Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlP),
                   case CartActionResponse of
                     <<"Success">> ->
                       ProcessPacket = true;
                     _ ->
-                      send_cart_action_error_packet(From#jid.lserver, From),
                       ProcessPacket = false
                   end;
                 MessageType == <<"cr_get">> ->
