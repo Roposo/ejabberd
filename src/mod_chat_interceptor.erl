@@ -88,7 +88,12 @@ mod_opt_type(unblock_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(block_unblock_token) -> fun iolist_to_binary/1;
 mod_opt_type(block_list_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(auto_reply_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post, auto_reply_url_post].
+mod_opt_type(cart_action_add_url_post) -> fun iolist_to_binary/1;
+mod_opt_type(cart_action_remove_url_post) -> fun iolist_to_binary/1;
+mod_opt_type(cart_action_oos_url_post) -> fun iolist_to_binary/1;
+mod_opt_type(cart_get_url_get) -> fun iolist_to_binary/1;
+mod_opt_type(cart_action_token) -> fun iolist_to_binary/1;
+mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post, auto_reply_url_post, cart_action_add_url_post, cart_action_remove_url_post, cart_action_oos_url_post, cart_get_url_get, cart_action_token].
 
 on_offline_message_hook(From, To, Packet) ->
   {_Xmlel, _Type, _Details, _Body} = Packet,
@@ -335,6 +340,80 @@ on_filter_packet(Packet) ->
   ?INFO_MSG("************ Packet processing ends ************~n~n", []),
   PacketN.
 
+cart_action(From, To, BodyJSON, Action) ->
+  {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+  ProductId = proplists:get_value(<<"id">>, BodyBlock),
+  Server = From#jid.lserver,
+  Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
+  case Action of
+    <<"cs_sp">> ->
+      Buyer = From#jid.luser,
+      Seller = To#jid.luser,
+      {BodyDet} = proplists:get_value(<<"det">>, BodyJSON),
+      ProductJSON = jiffy:encode(proplists:get_value(ProductId, BodyDet)),
+      CartActionAddUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_add_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+      Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"sdata">>,ProductJSON},{<<"token">>,Token}]}),
+      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionAddUrl, Data]),
+      Response = httpc:request(post, {CartActionAddUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
+    <<"cs_rmp">> ->
+      Buyer = From#jid.luser,
+      Seller = To#jid.luser,
+      CartActionRemoveUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_remove_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+      Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"seid">>,ProductId},{<<"token">>,Token}]}),
+      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionRemoveUrl, Data]),
+      Response = httpc:request(post, {CartActionRemoveUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
+    <<"cs_oos">> ->
+      Buyer = To#jid.luser,
+      Seller = From#jid.luser,
+      CartActionOOSUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_oos_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+      Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"seid">>,ProductId},{<<"token">>,Token}]}),
+      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionOOSUrl, Data]),
+      Response = httpc:request(post, {CartActionOOSUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
+    _ ->
+      Response = {error, {<<"Incorrect type for Cart Action">>, Action}}
+  end,
+  case Response of
+    {ok, {_, _, ResponseBody}} ->
+      case jiffy:decode(ResponseBody) of
+        {[{<<"gsc">>,<<"700">>},_]} -> <<"Success">>;
+        _ -> <<"Failure">>
+      end;
+    {error, {ErrorReason, _}} ->
+      ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
+      <<"Failure">>;
+    _ ->
+      <<"Failure">>
+  end.
+
+cart_get(Server, BodyJSON) ->
+  {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+  Buyer = proplists:get_value(<<"b_id">>, BodyBlock),
+  Seller = proplists:get_value(<<"s_id">>, BodyBlock),
+  Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
+  CartGetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_get_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+  CartGetUrlFull = CartGetUrl ++ "/" ++ binary_to_list(Token) ++ "/" ++ binary_to_list(Buyer) ++ "/" ++ binary_to_list(Seller),
+  Response = httpc:request(get, {CartGetUrlFull, []}, [], []),
+  case Response of
+    {ok, {_, _, ResponseBody}} ->
+      case jiffy:decode(ResponseBody) of
+        {[{<<"gsc">>,<<"700">>},{<<"data">>,{Data}}]} ->
+          {Det} = proplists:get_value(<<"det">>, Data),
+          jiffy:encode(Det);
+        _ -> <<"Failure">>
+      end;
+    {error, {ErrorReason, _}} ->
+      ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
+      <<"Failure">>;
+    _ ->
+      <<"Failure">>
+  end.
+
+send_cart_action_error_packet(From, To) ->
+  ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(From), binary_to_list(To)]).
+
+send_cart_get_data_packet(From, To, Data) ->
+  ?INFO_MSG("Send cart get response packet \"~p\" from ~p to ~p", [binary_to_list(Data), binary_to_list(From), binary_to_list(To)]).
+
 task_chat({From, To, XmlP}) ->
   XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
   ?INFO_MSG("XML begins:", []),
@@ -373,20 +452,32 @@ task_chat({From, To, XmlP}) ->
 %              ProcessPacket = string:equal(ResponseBody, "Success"),
 %              ToN = To;
             _ ->
-%              {BodyJSON} = jiffy:decode(Body),
-%              {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-%              MessageType = proplists:get_value(<<"ty">>, BodyBlock),
-%              ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
-%              case MessageType of
-%                <<"cs_rp">> ->
-%                  ID = fxml:get_tag_attr_s(<<"id">>, XmlN),
-%                  ?INFO_MSG("Initiating async task to send auto reply...", []),
-%                  Key = route_auto_reply_async(XmlN, To, From, ID, auto_reply_url_post, MessageType),
-%                  ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
-%                _ ->
-%                  ok
-%              end,
-              ProcessPacket = true
+              {BodyJSON} = jiffy:decode(Body),
+              {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+              MessageType = proplists:get_value(<<"ty">>, BodyBlock),
+              ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
+              if
+                MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">> ->
+                  CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
+                  case CartActionResponse of
+                    <<"Success">> ->
+                      ProcessPacket = true;
+                    _ ->
+                      send_cart_action_error_packet(From#jid.lserver, From),
+                      ProcessPacket = false
+                  end;
+                MessageType == <<"cr_get">> ->
+                  ProcessPacket = false,
+                  CartGetResponse = cart_get(From#jid.lserver, BodyJSON),
+                  case CartGetResponse of
+                    <<"Failure">> ->
+                      ?INFO_MSG("Error getting cart info", []);
+                    DetJSON ->
+                      send_cart_get_data_packet(From#jid.lserver, From, DetJSON)
+                  end;
+                true ->
+                  ProcessPacket = true
+              end
           end
       end;
     <<"iq">> ->

@@ -90,6 +90,17 @@ should_acknowledge(#xmlel{name = <<"message">>} = Packet) ->
         {_, <<>>} ->
             %% Empty body
             false;
+        {_, Body} ->
+            {BodyJSON} = jiffy:decode(Body),
+            {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+            BodyTy = proplists:get_value(<<"ty">>, BodyBlock),
+            case BodyTy of
+                <<"cs_sp">> -> false;
+                <<"cs_rmp">> -> false;
+                <<"cs_oos">> -> false;
+%                <<"cr_get">> -> false;
+                _ -> true
+            end;
         _ ->
             true
     end;

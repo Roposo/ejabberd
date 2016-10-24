@@ -613,6 +613,10 @@ modules:
     block_list_url_post: "http://localhost:9020/chat/get_block_list"
     vcard_image_type: "raw"
     auto_reply_url_post: "http://localhost:9020/chat/get_auto_response_json"
+    cart_action_add_url_post: "http://localhost:9000/v3/add-to-cart"
+    cart_action_remove_url_post: "http://localhost:9000/v3/remove-from-cart"
+    cart_action_oos_url_post: "http://localhost:9000/v3/mark-oos"
+    cart_get_url_get: "http://localhost:9000/v3/cart-info"
   mod_client_state: {}
   mod_configure: {} # requires mod_adhoc
   mod_disco: {}
