@@ -408,9 +408,8 @@ cart_get(Server, BodyJSON) ->
       GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
       case GSCCode of
         <<"700">> ->
-          {Data} = proplists:get_value(<<"data">>, ResponseBodyJSON),
-          Det = proplists:get_value(<<"det">>, Data),
-          jiffy:encode(Det);
+          Data = proplists:get_value(<<"data">>, ResponseBodyJSON),
+          jiffy:encode(Data);
         <<"600">> ->
           DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
           ?INFO_MSG("Error: ~s", [DataR]),
@@ -453,7 +452,7 @@ send_cart_action_result_packet(From, To, CartActionResponse, Packet) ->
 send_cart_get_data_packet(From, To, Data, Packet) ->
   ID = fxml:get_tag_attr_s(<<"id">>, Packet),
   IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-  Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"txt\":\"" ++ binary_to_list(Data) ++ "\"}}"),
+  Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"txt\":" ++ binary_to_list(Data) ++ "}}"),
   XmlBody = #xmlel{name = <<"message">>,
                    attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
                    children = [#xmlel{name = <<"body">>,
@@ -530,9 +529,9 @@ task_chat({From, To, XmlP}) ->
                   case CartGetResponse of
                     <<"Failure">> ->
                       ?INFO_MSG("Error getting cart info", []);
-                    DetJSON ->
+                    _ ->
 %                      ?INFO_MSG("Cart get response: ~p", [binary_to_list(CartGetResponse)]),
-                      send_cart_get_data_packet(From#jid.lserver, From, DetJSON, XmlP)
+                      send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlP)
                   end;
                 true ->
                   ProcessPacket = true
