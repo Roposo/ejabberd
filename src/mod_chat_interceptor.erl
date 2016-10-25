@@ -193,8 +193,10 @@ process_cart_action(Pkt, _, From, To) ->
                   ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
                   CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
                   Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlP),
-                  case CartActionResponse of
-                    <<"Success">> ->
+                  {CartActionResponseJSON} = jiffy:decode(CartActionResponse),
+                  GSCCode = proplists:get_value(<<"gsc">>, CartActionResponseJSON),
+                  case GSCCode of
+                    <<"700">> ->
                       ProcessPacket = true;
                     _ ->
                       ProcessPacket = false
