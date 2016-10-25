@@ -98,7 +98,7 @@ should_acknowledge(#xmlel{name = <<"message">>} = Packet) ->
                 <<"cs_sp">> -> false;
                 <<"cs_rmp">> -> false;
                 <<"cs_oos">> -> false;
-%                <<"cr_get">> -> false;
+                <<"cr_get">> -> false;
                 _ -> true
             end;
         _ ->
