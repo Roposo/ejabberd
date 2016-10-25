@@ -174,7 +174,7 @@ process_cart_action(Pkt, _, From, To) ->
                 MessageType == <<"cr_get">> ->
                   ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
                   ProcessPacket = false,
-                  CartGetResponse = cart_get(From#jid.lserver, BodyJSON),
+                  CartGetResponse = cart_get(From, BodyJSON),
                   case CartGetResponse of
                     <<"Failure">> ->
                       ?INFO_MSG("Error getting cart info", []);
@@ -344,10 +344,11 @@ cart_action(From, To, BodyJSON, Action) ->
   end,
   list_to_binary(ResponseBody).
 
-cart_get(Server, BodyJSON) ->
+cart_get(From, BodyJSON) ->
   {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-  Buyer = proplists:get_value(<<"b_id">>, BodyBlock),
-  Seller = proplists:get_value(<<"s_id">>, BodyBlock),
+  Buyer = From#jid.luser,
+  Seller = proplists:get_value(<<"uid">>, BodyBlock),
+  Server = From#jid.lserver,
   Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
   CartGetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_get_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
   CartGetUrlFull = CartGetUrl ++ "/" ++ binary_to_list(Token) ++ "/" ++ binary_to_list(Buyer) ++ "/" ++ binary_to_list(Seller),
