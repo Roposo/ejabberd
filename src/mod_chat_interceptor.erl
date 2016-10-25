@@ -27,10 +27,10 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, route_auto_reply/6, send_cart_action_result_packet/4]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, send_cart_action_result_packet/4]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
--export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, on_offline_message_hook/3, process_cart_action/4]).
+-export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, process_cart_action/4]).
 
 %-record(state, {config}).
 
@@ -62,7 +62,6 @@ start(Host, _Opts) ->
 %%  capture packets received by user
 %%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
-  ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 12),
   ok.
 
 stop(Host) ->
@@ -77,7 +76,6 @@ stop(Host) ->
   % delete packets received by user
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
-  ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 12),
   ok.
 
 depends(_Host, _Opts) ->
@@ -90,40 +88,12 @@ mod_opt_type(block_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(unblock_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(block_unblock_token) -> fun iolist_to_binary/1;
 mod_opt_type(block_list_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(auto_reply_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_add_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_remove_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_oos_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(cart_get_url_get) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_token) -> fun iolist_to_binary/1;
-mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post, auto_reply_url_post, cart_action_add_url_post, cart_action_remove_url_post, cart_action_oos_url_post, cart_get_url_get, cart_action_token].
-
-on_offline_message_hook(From, To, Packet) ->
-  {_Xmlel, _Type, _Details, _Body} = Packet,
-  case _Type of
-    <<"message">> ->
-      Body = fxml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
-      case Body of
-        <<>> ->
-          ok;
-        _ ->
-          {BodyJSON} = jiffy:decode(Body),
-          {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-          MessageType = proplists:get_value(<<"ty">>, BodyBlock),
-          ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
-          case MessageType of
-            <<"cs_rp">> ->
-              ID = fxml:get_tag_attr_s(<<"id">>, Packet),
-              ?INFO_MSG("Initiating async task to send auto reply...", []),
-              Key = route_auto_reply_async(Packet, To, From, ID, auto_reply_url_post, MessageType),
-              ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
-            _ ->
-                ok
-          end
-      end;
-    _ ->
-      ok
-  end.
+mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post, cart_action_add_url_post, cart_action_remove_url_post, cart_action_oos_url_post, cart_get_url_get, cart_action_token].
 
 add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
@@ -253,41 +223,6 @@ on_user_send_packet(Pkt, _, _, To) ->
       XmlN = XmlP
   end,
   XmlN.
-
-route_auto_reply_to_both(Body, From, To, ID) ->
-  IDR = list_to_binary(binary_to_list(ID) ++ "_auto-reply"),
-%  Body = <<"{\"block\":{\"ty\":\"ct\",\"txt\":\"Auto reply is working, awesome!\"}}">>,
-  XmlReply = #xmlel{name = <<"message">>,
-                    attrs = [{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
-                    children = [#xmlel{name = <<"body">>, children = [{xmlcdata, Body}]}]},
-  ejabberd_router:route(From, To, XmlReply),
-  XmlReply2 = #xmlel{name = <<"message">>,
-                    attrs = [{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
-                    children = [#xmlel{name = <<"body">>, children = [{xmlcdata, Body}]}]},
-  ejabberd_router:route(To, From, XmlReply2).
-
-route_auto_reply(_, From, To, ID, PostUrlConfig, MessageType) ->
-  PostUrl = binary_to_list(gen_mod:get_module_opt(From#jid.lserver, ?MODULE, PostUrlConfig, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-  UserP = string:concat("user=", binary_to_list(From#jid.luser)),
-  MsgTyP = string:concat("msgtype=", binary_to_list(MessageType)),
-  Data = string:join([UserP, MsgTyP], "&"),
-  ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
-%  {Flag, {_, _, ResponseBody}} = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-  Response = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-  case Response of
-    {ok, {_, _, ResponseBody}} ->
-      ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
-      {ResponseJSON} = jiffy:decode(ResponseBody),
-      ChatBodyJSON = proplists:get_value(<<"data">>, ResponseJSON),
-      ChatBody = jiffy:encode(ChatBodyJSON),
-      route_auto_reply_to_both(ChatBody, From, To, ID);
-    {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
-    _ -> ok
-  end.
-
-route_auto_reply_async(Pkt, From, To, ID, PostUrlConfig, MessageType) ->
-  Key = rpc:async_call(node(), mod_chat_interceptor, route_auto_reply, [Pkt, From, To, ID, PostUrlConfig, MessageType]),
-  Key.
 
 on_update_presence(Packet, _, _) ->
   File = "chat_history.log",

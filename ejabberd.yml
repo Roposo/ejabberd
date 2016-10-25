@@ -600,6 +600,8 @@ modules:
   mod_blocking: {} # requires mod_privacy
   mod_caps: {}
   mod_carboncopy: {}
+  mod_chat_autoresponse:
+    auto_reply_url_post: "http://localhost:9020/chat/get_auto_response_json"
   mod_chat_interceptor:
     push_url_post: "http://localhost:9020/chat/send_push"
     vcard_url_post: "http://localhost:9020/chat/get_vcard_xml"
@@ -612,7 +614,6 @@ modules:
     block_unblock_token: "850531e8-b47a-4f5b-b482-5fb7405629fb"
     block_list_url_post: "http://localhost:9020/chat/get_block_list"
     vcard_image_type: "raw"
-    auto_reply_url_post: "http://localhost:9020/chat/get_auto_response_json"
     cart_action_add_url_post: "http://localhost:9000/v3/add-to-cart"
     cart_action_remove_url_post: "http://localhost:9000/v3/remove-from-cart"
     cart_action_oos_url_post: "http://localhost:9000/v3/mark-oos"
