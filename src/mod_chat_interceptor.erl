@@ -30,7 +30,7 @@
 -export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, route_auto_reply/6, send_cart_action_result_packet/4]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
--export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, on_offline_message_hook/3]).
+-export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, on_offline_message_hook/3, process_cart_action/4]).
 
 %-record(state, {config}).
 
@@ -58,6 +58,7 @@ start(Host, _Opts) ->
   ejabberd_hooks:add(filter_packet, global, ?MODULE, on_filter_packet, 2),
 %%  ejabberd_hooks:add(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
   ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
+  ejabberd_hooks:add(user_send_packet, Host, ?MODULE, process_cart_action, 14),
 %%  capture packets received by user
 %%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
@@ -72,6 +73,7 @@ stop(Host) ->
   ejabberd_hooks:delete(filter_packet, global, ?MODULE, task, 2),
 %%  ejabberd_hooks:delete(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
   ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
+  ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, process_cart_action, 14),
   % delete packets received by user
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
@@ -169,43 +171,7 @@ update_vcard_of_user(User, Server) ->
   Key = rpc:async_call(node(), mod_chat_interceptor, update_vcard, [User, Server]),
   Key.
 
-%block_unblock_user(Blocker, Blockee, Block, Server) ->
-%  GetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, block_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-%  Token = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, block_token, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-%  BlockerP = string:concat("blocker=", Blocker),
-%  BlockeeP = string:concat("blockee=", Blockee),
-%  BlockP = string:concat("block=", Block),
-%  TokenP = string:concat("token=", Token),
-%  Data = string:join([BlockerP, BlockeeP, BlockP, TokenP], "&"),
-%  GetUrlFull = string:concat(GetUrl, string:concat("?", Data)),
-%  ?INFO_MSG("Sending get request to ~s", [GetUrlFull]),
-%%  {Flag, {_, _, ResponseBody}} = httpc:request(get, {GetUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
-%  {Flag, {_, _, ResponseBody}} = httpc:request(GetUrlFull),
-%  ?INFO_MSG("Response received: {~s, ~s}", [Flag, ResponseBody]),
-%%  ?INFO_MSG("**************** ~p has blocked ~p ****************~n~n", [Blocker, Blockee]),
-%  ok.
-
-%process_iq_set(_, From, _, IQ) ->
-%  ?INFO_MSG("~n**************** process_iq_set ****************~n", []),
-%  XmlP = IQ#iq.sub_el,
-%  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
-%  ?INFO_MSG("XML: ~p", [XmlStr]),
-%  {_Xmlel, _Type, _Details, _Body} = XmlP,
-%  ?INFO_MSG("Type: ~p", [_Type]),
-%  Blockee = lists:nth(1, string:tokens(binary_to_list(fxml:get_path_s(XmlP, [{elem, <<"item">>}, {attr, <<"jid">>}])), "@")),
-%  Blocker = binary_to_list(From#jid.luser),
-%  Server = From#jid.lserver,
-%  case _Type of
-%    <<"block">> ->
-%      block_unblock_user(Blocker, Blockee, "true", Server);
-%    <<"unblock">> ->
-%      block_unblock_user(Blocker, Blockee, "false", Server);
-%    _ ->
-%      ok
-%  end,
-%  XmlP.
-
-on_user_send_packet(Pkt, _, From, To) ->
+process_cart_action(Pkt, _, From, To) ->
   XmlP = Pkt,
   {_Xmlel, _Type, _Details, _Body} = XmlP,
   case _Type of
@@ -216,11 +182,8 @@ on_user_send_packet(Pkt, _, From, To) ->
           Body = fxml:get_path_s(XmlP, [{elem, list_to_binary("body")}, cdata]),
           case Body of
             <<"">> ->
-              XmlN = XmlP,
               ProcessPacket = false;
             _ ->
-              XmlN = add_timestamp(XmlP, To#jid.lserver),
-%              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))]),
               {BodyJSON} = jiffy:decode(Body),
               {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
               MessageType = proplists:get_value(<<"ty">>, BodyBlock),
@@ -228,7 +191,7 @@ on_user_send_packet(Pkt, _, From, To) ->
               if
                 MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">> ->
                   CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
-                  Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlN),
+                  Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlP),
                   case CartActionResponse of
                     <<"Success">> ->
                       ProcessPacket = true;
@@ -243,27 +206,49 @@ on_user_send_packet(Pkt, _, From, To) ->
                       ?INFO_MSG("Error getting cart info", []);
                     _ ->
 %                      ?INFO_MSG("Cart get response: ~p", [binary_to_list(CartGetResponse)]),
-                      send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlN)
+                      send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlP)
                   end;
                 true ->
                   ProcessPacket = true
               end
           end;
         _ ->
-          XmlN = XmlP,
           ProcessPacket = true
       end;
     _ ->
-      XmlN = XmlP,
       ProcessPacket = true
   end,
   case ProcessPacket of
     true ->
       ?INFO_MSG("Processing packet", []),
-      XmlN;
+      XmlP;
     false ->
       ?INFO_MSG("Skipping packet", [])
   end.
+
+on_user_send_packet(Pkt, _, _, To) ->
+  XmlP = Pkt,
+  {_Xmlel, _Type, _Details, _Body} = XmlP,
+  case _Type of
+    <<"message">> ->
+      Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
+      case Type of
+        <<"chat">> ->
+          Body = fxml:get_path_s(XmlP, [{elem, list_to_binary("body")}, cdata]),
+          case Body of
+            <<"">> ->
+              XmlN = XmlP;
+            _ ->
+              XmlN = add_timestamp(XmlP, To#jid.lserver)
+%              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
+          end;
+        _ ->
+          XmlN = XmlP
+      end;
+    _ ->
+      XmlN = XmlP
+  end,
+  XmlN.
 
 route_auto_reply_to_both(Body, From, To, ID) ->
   IDR = list_to_binary(binary_to_list(ID) ++ "_auto-reply"),
