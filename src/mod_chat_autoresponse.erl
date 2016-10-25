@@ -116,7 +116,8 @@ on_filter_packet({From, To, Packet}) ->
             end;
         _ ->
           ok
-    end.
+    end,
+    {From, To, Packet}.
 
 %%%===================================================================
 %%% Internal functions
