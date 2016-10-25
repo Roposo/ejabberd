@@ -446,7 +446,7 @@ send_cart_action_result_packet_async(From, To, CartActionResponse, Packet) ->
 send_cart_action_result_packet(From, To, CartActionResponse, Packet) ->
   ID = fxml:get_tag_attr_s(<<"id">>, Packet),
   IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-  Body = list_to_binary("{\"block\":{\"ty\":\"cr_ack\",\"txt\":\"" ++ binary_to_list(CartActionResponse) ++ "\"}}"),
+  Body = list_to_binary("{\"block\":{\"ty\":\"cr_ack\",\"data\":\"" ++ binary_to_list(CartActionResponse) ++ "\"}}"),
   XmlBody = #xmlel{name = <<"message">>,
                    attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
                    children = [#xmlel{name = <<"body">>,
@@ -467,7 +467,7 @@ send_cart_action_result_packet(From, To, CartActionResponse, Packet) ->
 send_cart_get_data_packet(From, To, Data, Packet) ->
   ID = fxml:get_tag_attr_s(<<"id">>, Packet),
   IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-  Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"txt\":" ++ binary_to_list(Data) ++ "}}"),
+  Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"data\":" ++ binary_to_list(Data) ++ "}}"),
   XmlBody = #xmlel{name = <<"message">>,
                    attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
                    children = [#xmlel{name = <<"body">>,
