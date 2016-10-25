@@ -13,7 +13,7 @@
 
 %% API
 
--export([start/2, stop/1, depends/2, mod_opt_type/1, on_offline_message_hook/3, route_auto_reply/6]).
+-export([start/2, stop/1, depends/2, mod_opt_type/1, on_offline_message_hook/3, route_auto_reply/6, on_filter_packet/1]).
 
 -include("logger.hrl").
 -include_lib("ejabberd.hrl").
@@ -25,10 +25,12 @@
 
 start(Host, _Opts) ->
     ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 12),
+    ejabberd_hooks:add(filter_packet, global, ?MODULE, on_filter_packet, 12),
     ok.
 
 stop(Host) ->
     ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 12),
+    ejabberd_hooks:delete(filter_packet, global, ?MODULE, on_filter_packet, 12),
     ok.
 
 depends(_Host, _Opts) ->
@@ -54,7 +56,7 @@ on_offline_message_hook(From, To, Packet) ->
                       <<"cs_rp">> ->
                           ID = fxml:get_tag_attr_s(<<"id">>, Packet),
                           ?INFO_MSG("Initiating async task to send auto reply...", []),
-                          Key = route_auto_reply_async(Packet, To, From, ID, auto_reply_url_post, MessageType),
+                          Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
                           ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
                       _ ->
                           ok
@@ -64,11 +66,18 @@ on_offline_message_hook(From, To, Packet) ->
           ok
     end.
 
-route_auto_reply(_, From, To, ID, PostUrlConfig, MessageType) ->
+route_auto_reply(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
     PostUrl = binary_to_list(gen_mod:get_module_opt(From#jid.lserver, ?MODULE, PostUrlConfig, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
     UserP = string:concat("user=", binary_to_list(From#jid.luser)),
     MsgTyP = string:concat("msgtype=", binary_to_list(MessageType)),
-    Data = string:join([UserP, MsgTyP], "&"),
+    case MessageType of
+        <<"cr_pr">> ->
+            PayAmt = proplists:get_value(<<"pay">>, BodyBlock),
+            PayAmtP = string:concat("pay=", binary_to_list(PayAmt)),
+            Data = string:join([UserP, MsgTyP, PayAmtP], "&");
+        _ ->
+            Data = string:join([UserP, MsgTyP], "&")
+    end,
     ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
     Response = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
     case Response of
@@ -82,12 +91,39 @@ route_auto_reply(_, From, To, ID, PostUrlConfig, MessageType) ->
         _ -> ok
     end.
 
+on_filter_packet({From, To, Packet}) ->
+    {_Xmlel, _Type, _Details, _Body} = Packet,
+    case _Type of
+        <<"message">> ->
+            Body = fxml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
+            case Body of
+                <<>> ->
+                  ok;
+                _ ->
+                  {BodyJSON} = jiffy:decode(Body),
+                  {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+                  MessageType = proplists:get_value(<<"ty">>, BodyBlock),
+                  ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
+                  case MessageType of
+                      <<"cr_pr">> ->
+                          ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+                          ?INFO_MSG("Initiating async task to send auto reply...", []),
+                          Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
+                          ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
+                      _ ->
+                          ok
+                  end
+            end;
+        _ ->
+          ok
+    end.
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
 
-route_auto_reply_async(Pkt, From, To, ID, PostUrlConfig, MessageType) ->
-    Key = rpc:async_call(node(), mod_chat_autoresponse, route_auto_reply, [Pkt, From, To, ID, PostUrlConfig, MessageType]),
+route_auto_reply_async(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
+    Key = rpc:async_call(node(), mod_chat_autoresponse, route_auto_reply, [BodyBlock, From, To, ID, PostUrlConfig, MessageType]),
     Key.
 
 route_auto_reply_to_both(Body, From, To, ID) ->
