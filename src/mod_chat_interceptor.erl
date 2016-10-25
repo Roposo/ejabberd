@@ -220,6 +220,7 @@ on_user_send_packet(Pkt, _, From, To) ->
               ProcessPacket = false;
             _ ->
               XmlN = add_timestamp(XmlP, To#jid.lserver),
+%              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))]),
               {BodyJSON} = jiffy:decode(Body),
               {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
               MessageType = proplists:get_value(<<"ty">>, BodyBlock),
@@ -247,7 +248,6 @@ on_user_send_packet(Pkt, _, From, To) ->
                 true ->
                   ProcessPacket = true
               end
-%              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
           end;
         _ ->
           XmlN = XmlP,
