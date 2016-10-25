@@ -205,39 +205,65 @@ update_vcard_of_user(User, Server) ->
 %  end,
 %  XmlP.
 
-on_user_send_packet(Pkt, _, _, To) ->
-%  ?INFO_MSG("Inside on_user_send_packet...", []),
+on_user_send_packet(Pkt, _, From, To) ->
   XmlP = Pkt,
-%  XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
-%  ?INFO_MSG("**************** on_user_send_packet Packet string: ~p ****************", [XmlStr]),
   {_Xmlel, _Type, _Details, _Body} = XmlP,
-%  ?INFO_MSG("Packet type: ~p", [Type]),
   case _Type of
     <<"message">> ->
-%      STB = fxml:get_subtag(XmlP, <<"body">>),
       Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
       case Type of
         <<"chat">> ->
           Body = fxml:get_path_s(XmlP, [{elem, list_to_binary("body")}, cdata]),
           case Body of
             <<"">> ->
-              XmlN = XmlP;
+              XmlN = XmlP,
+              ProcessPacket = false;
             _ ->
-%              BodyR = list_to_binary(string:concat("<Roposo Chat> ", binary_to_list(Body))),
-%              ?INFO_MSG("Message modified to: ~p", [BodyR]),
-%              XmlN = add_timestamp(fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP), To#jid.lserver)
-              XmlN = add_timestamp(XmlP, To#jid.lserver)
+              XmlN = add_timestamp(XmlP, To#jid.lserver),
+              {BodyJSON} = jiffy:decode(Body),
+              {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+              MessageType = proplists:get_value(<<"ty">>, BodyBlock),
+              ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
+              if
+                MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">> ->
+                  CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
+                  Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlN),
+                  case CartActionResponse of
+                    <<"Success">> ->
+                      ProcessPacket = true;
+                    _ ->
+                      ProcessPacket = false
+                  end;
+                MessageType == <<"cr_get">> ->
+                  ProcessPacket = false,
+                  CartGetResponse = cart_get(From#jid.lserver, BodyJSON),
+                  case CartGetResponse of
+                    <<"Failure">> ->
+                      ?INFO_MSG("Error getting cart info", []);
+                    _ ->
+%                      ?INFO_MSG("Cart get response: ~p", [binary_to_list(CartGetResponse)]),
+                      send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlN)
+                  end;
+                true ->
+                  ProcessPacket = true
+              end
 %              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
           end;
         _ ->
-          XmlN = XmlP
+          XmlN = XmlP,
+          ProcessPacket = true
       end;
     _ ->
-      XmlN = XmlP
+      XmlN = XmlP,
+      ProcessPacket = true
   end,
-%  ?INFO_MSG("Exiting on_user_send_packet...~n", []),
-%  Pkt.
-  XmlN.
+  case ProcessPacket of
+    true ->
+      ?INFO_MSG("Processing packet", []),
+      XmlN;
+    false ->
+      ?INFO_MSG("Skipping packet", [])
+  end.
 
 route_auto_reply_to_both(Body, From, To, ID) ->
   IDR = list_to_binary(binary_to_list(ID) ++ "_auto-reply"),
@@ -494,10 +520,6 @@ task_chat({From, To, XmlP}) ->
         _ ->
           Body = fxml:get_tag_cdata(STB),
           ?INFO_MSG("Message body: ~p", [binary_to_list(Body)]),
-%          BodyR = list_to_binary(lists:reverse(binary_to_list(Body))),
-%          XmlN = fxml:replace_subtag(#xmlel{name = <<"body">>, children = [{xmlcdata, BodyR}]}, XmlP),
-%          ToN = jid:replace_resource(To, <<"">>),
-%          ToN = To,
           Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
           case Type of
             <<"groupchat">> ->
@@ -508,34 +530,7 @@ task_chat({From, To, XmlP}) ->
 %              ProcessPacket = string:equal(ResponseBody, "Success"),
 %              ToN = To;
             _ ->
-              {BodyJSON} = jiffy:decode(Body),
-              {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-              MessageType = proplists:get_value(<<"ty">>, BodyBlock),
-              ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
-              if
-                MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">> ->
-                  CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
-                  Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlP),
-                  case CartActionResponse of
-                    <<"Success">> ->
-                      ProcessPacket = true;
-                    _ ->
-                      ProcessPacket = false
-                  end;
-                MessageType == <<"cr_get">> ->
-%                  ?INFO_MSG("Cart get packet", []),
-                  ProcessPacket = false,
-                  CartGetResponse = cart_get(From#jid.lserver, BodyJSON),
-                  case CartGetResponse of
-                    <<"Failure">> ->
-                      ?INFO_MSG("Error getting cart info", []);
-                    _ ->
-%                      ?INFO_MSG("Cart get response: ~p", [binary_to_list(CartGetResponse)]),
-                      send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlP)
-                  end;
-                true ->
-                  ProcessPacket = true
-              end
+              ProcessPacket = true
           end
       end;
     <<"iq">> ->
