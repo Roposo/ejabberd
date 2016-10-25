@@ -172,7 +172,6 @@ update_vcard_of_user(User, Server) ->
   Key.
 
 process_cart_action(Pkt, _, From, To) ->
-  ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(Pkt)]),
   XmlP = Pkt,
   {_Xmlel, _Type, _Details, _Body} = XmlP,
   case _Type of
@@ -191,6 +190,7 @@ process_cart_action(Pkt, _, From, To) ->
               ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
               if
                 MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">> ->
+                  ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
                   CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
                   Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlP),
                   case CartActionResponse of
@@ -200,6 +200,7 @@ process_cart_action(Pkt, _, From, To) ->
                       ProcessPacket = false
                   end;
                 MessageType == <<"cr_get">> ->
+                  ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
                   ProcessPacket = false,
                   CartGetResponse = cart_get(From#jid.lserver, BodyJSON),
                   case CartGetResponse of
@@ -363,7 +364,7 @@ cart_action(From, To, BodyJSON, Action) ->
       Buyer = From#jid.luser,
       Seller = To#jid.luser,
       {BodyDet} = proplists:get_value(<<"det">>, BodyJSON),
-      ProductJSON = proplists:get_value(ProductId, BodyDet),
+      ProductJSON = jiffy:encode(proplists:get_value(ProductId, BodyDet)),
       CartActionAddUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_add_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
       Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"sdata">>,ProductJSON},{<<"token">>,Token}]}),
       ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionAddUrl, Data]),
