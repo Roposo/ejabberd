@@ -172,6 +172,7 @@ update_vcard_of_user(User, Server) ->
   Key.
 
 process_cart_action(Pkt, _, From, To) ->
+  ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(Pkt)]),
   XmlP = Pkt,
   {_Xmlel, _Type, _Details, _Body} = XmlP,
   case _Type of
@@ -386,22 +387,24 @@ cart_action(From, To, BodyJSON, Action) ->
   end,
   case Response of
     {ok, {_, _, ResponseBody}} ->
-      {ResponseBodyJSON} = jiffy:decode(ResponseBody),
-      GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
-      case GSCCode of
-        <<"700">> -> <<"Success">>;
-        <<"600">> ->
-          DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
-          ?INFO_MSG("Error: ~s", [DataR]),
-          <<"Failure">>;
-        _ -> <<"Failure">>
-      end;
+      ?INFO_MSG("Response body: ~p", [ResponseBody]);
+%      {ResponseBodyJSON} = jiffy:decode(ResponseBody),
+%      GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
+%      case GSCCode of
+%        <<"700">> -> <<"Success">>;
+%        <<"600">> ->
+%          DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
+%          ?INFO_MSG("Error: ~s", [DataR]),
+%          <<"Failure">>;
+%        _ -> <<"Failure">>
+%      end;
     {error, {ErrorReason, _}} ->
       ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
-      <<"Failure">>;
+      ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++ "\"}";
     _ ->
-      <<"Failure">>
-  end.
+      ResponseBody = "{\"gsc\":\"600\",\"message\":\"Unknown error\"}"
+  end,
+  list_to_binary(ResponseBody).
 
 cart_get(Server, BodyJSON) ->
   {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
@@ -414,25 +417,26 @@ cart_get(Server, BodyJSON) ->
   Response = httpc:request(get, {CartGetUrlFull, []}, [], []),
   case Response of
     {ok, {_, _, ResponseBody}} ->
-      ?INFO_MSG("Response body: ~p", [ResponseBody]),
-      {ResponseBodyJSON} = jiffy:decode(ResponseBody),
-      GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
-      case GSCCode of
-        <<"700">> ->
-          Data = proplists:get_value(<<"data">>, ResponseBodyJSON),
-          jiffy:encode(Data);
-        <<"600">> ->
-          DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
-          ?INFO_MSG("Error: ~s", [DataR]),
-          <<"Failure">>;
-        _ -> <<"Failure">>
-      end;
+      ?INFO_MSG("Response body: ~p", [ResponseBody]);
+%      {ResponseBodyJSON} = jiffy:decode(ResponseBody),
+%      GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
+%      case GSCCode of
+%        <<"700">> ->
+%          Data = proplists:get_value(<<"data">>, ResponseBodyJSON),
+%          jiffy:encode(Data);
+%        <<"600">> ->
+%          DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
+%          ?INFO_MSG("Error: ~s", [DataR]),
+%          <<"Failure">>;
+%        _ -> <<"Failure">>
+%      end;
     {error, {ErrorReason, _}} ->
       ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
-      <<"Failure">>;
+      ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++ "\"}";
     _ ->
-      <<"Failure">>
-  end.
+      ResponseBody = "{\"gsc\":\"600\",\"message\":\"Unknown error\"}"
+  end,
+  list_to_binary(ResponseBody).
 
 send_cart_action_result_packet_async(From, To, CartActionResponse, Packet) ->
   ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(From), binary_to_list(To#jid.luser)]),
