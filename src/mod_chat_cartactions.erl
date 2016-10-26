@@ -41,7 +41,8 @@ mod_opt_type(cart_action_remove_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_oos_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(cart_get_url_get) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_token) -> fun iolist_to_binary/1;
-mod_opt_type(_) -> [cart_action_add_url_post, cart_action_remove_url_post, cart_action_oos_url_post, cart_get_url_get, cart_action_token].
+mod_opt_type(cart_action_timeout_millis) -> fun iolist_to_binary/1;
+mod_opt_type(_) -> [cart_action_add_url_post, cart_action_remove_url_post, cart_action_oos_url_post, cart_get_url_get, cart_action_token, cart_action_timeout_millis].
 
 on_user_send_packet(Packet, _, From, To) ->
     XmlP = Packet,
@@ -132,6 +133,7 @@ cart_action(From, To, BodyJSON, Action) ->
     ProductId = proplists:get_value(<<"id">>, BodyBlock),
     Server = From#jid.lserver,
     Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
+    Timeout = gen_mod:get_module_opt(Server, ?MODULE, cart_action_timeout_millis, fun(S) -> iolist_to_binary(S) end, infinity),
     case Action of
         <<"cs_sp">> ->
             Buyer = From#jid.luser,
@@ -141,21 +143,21 @@ cart_action(From, To, BodyJSON, Action) ->
             CartActionAddUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_add_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
             Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"sdata">>,ProductJSON},{<<"token">>,Token}]}),
             ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionAddUrl, Data]),
-            Response = httpc:request(post, {CartActionAddUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
+            Response = httpc:request(post, {CartActionAddUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [{timeout, Timeout}], []);
         <<"cs_rmp">> ->
             Buyer = From#jid.luser,
             Seller = To#jid.luser,
             CartActionRemoveUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_remove_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
             Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"seid">>,ProductId},{<<"token">>,Token}]}),
             ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionRemoveUrl, Data]),
-            Response = httpc:request(post, {CartActionRemoveUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
+            Response = httpc:request(post, {CartActionRemoveUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [{timeout, Timeout}], []);
         <<"cs_oos">> ->
             Buyer = To#jid.luser,
             Seller = From#jid.luser,
             CartActionOOSUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_oos_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
             Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"seid">>,ProductId},{<<"token">>,Token}]}),
             ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionOOSUrl, Data]),
-            Response = httpc:request(post, {CartActionOOSUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
+            Response = httpc:request(post, {CartActionOOSUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [{timeout, Timeout}], []);
         _ ->
             Response = {error, {<<"Incorrect type for Cart Action">>, Action}}
     end,
@@ -176,10 +178,11 @@ cart_get(From, BodyJSON) ->
     Seller = proplists:get_value(<<"uid">>, BodyBlock),
     Server = From#jid.lserver,
     Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
+    Timeout = gen_mod:get_module_opt(Server, ?MODULE, cart_action_timeout_millis, fun(S) -> iolist_to_binary(S) end, infinity),
     CartGetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_get_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
     CartGetUrlFull = CartGetUrl ++ "/" ++ binary_to_list(Token) ++ "/" ++ binary_to_list(Buyer) ++ "/" ++ binary_to_list(Seller),
     ?INFO_MSG("Sending get request to ~s", [CartGetUrlFull]),
-    Response = httpc:request(get, {CartGetUrlFull, []}, [], []),
+    Response = httpc:request(get, {CartGetUrlFull, []}, [{timeout, Timeout}], []),
     case Response of
         {ok, {_, _, ResponseBody}} ->
             ?INFO_MSG("Response body: ~p", [ResponseBody]);
