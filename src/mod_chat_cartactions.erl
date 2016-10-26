@@ -62,7 +62,7 @@ on_user_send_packet(Packet, _, From, To) ->
                             MessageType = proplists:get_value(<<"ty">>, BodyBlock),
                             ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
                             if
-                                MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">> ->
+                                MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">>; MessageType == <<"cr_cp">>->
                                     ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
                                     CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
                                     Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlP),
@@ -158,6 +158,13 @@ cart_action(From, To, BodyJSON, Action) ->
             Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"seid">>,ProductId},{<<"token">>,Token}]}),
             ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionOOSUrl, Data]),
             Response = httpc:request(post, {CartActionOOSUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [{timeout, Timeout}], []);
+        <<"cr_cp">> ->
+            Buyer = From#jid.luser,
+            Seller = To#jid.luser,
+            CartActionAddUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_add_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+            Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"checkout">>,true},{<<"token">>,Token}]}),
+            ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionAddUrl, Data]),
+            Response = httpc:request(post, {CartActionAddUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [{timeout, Timeout}], []);
         _ ->
             Response = {error, {<<"Incorrect type for Cart Action">>, Action}}
     end,
