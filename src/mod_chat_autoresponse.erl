@@ -71,7 +71,7 @@ route_auto_reply(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
     UserP = string:concat("user=", binary_to_list(From#jid.luser)),
     MsgTyP = string:concat("msgtype=", binary_to_list(MessageType)),
     case MessageType of
-        <<"cr_pr">> ->
+        <<"cr_cp">> ->
             PayAmt = proplists:get_value(<<"pay">>, BodyBlock),
             PayAmtP = string:concat("pay=", binary_to_list(PayAmt)),
             Data = string:join([UserP, MsgTyP, PayAmtP], "&");
@@ -105,7 +105,7 @@ on_filter_packet({From, To, Packet}) ->
                   MessageType = proplists:get_value(<<"ty">>, BodyBlock),
                   ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
                   case MessageType of
-                      <<"cr_pr">> ->
+                      <<"cr_cp">> ->
                           ID = fxml:get_tag_attr_s(<<"id">>, Packet),
                           ?INFO_MSG("Initiating async task to send auto reply...", []),
                           Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
