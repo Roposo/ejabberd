@@ -13,7 +13,7 @@
 
 %% API
 
--export([start/2, stop/1, depends/2, mod_opt_type/1, on_offline_message_hook/3, route_auto_reply/6, on_filter_packet/1]).
+-export([start/2, stop/1, depends/2, mod_opt_type/1, on_offline_message_hook/3, route_auto_reply/6, on_user_send_packet/4]).
 
 -include("logger.hrl").
 -include_lib("ejabberd.hrl").
@@ -25,12 +25,12 @@
 
 start(Host, _Opts) ->
     ejabberd_hooks:add(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 12),
-    ejabberd_hooks:add(filter_packet, global, ?MODULE, on_filter_packet, 12),
+    ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 16),
     ok.
 
 stop(Host) ->
     ejabberd_hooks:delete(offline_message_hook, Host, ?MODULE, on_offline_message_hook, 12),
-    ejabberd_hooks:delete(filter_packet, global, ?MODULE, on_filter_packet, 12),
+    ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 16),
     ok.
 
 depends(_Host, _Opts) ->
@@ -91,7 +91,7 @@ route_auto_reply(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
         _ -> ok
     end.
 
-on_filter_packet({From, To, Packet}) ->
+on_user_send_packet(Packet, _, From, To) ->
     {_Xmlel, _Type, _Details, _Body} = Packet,
     case _Type of
         <<"message">> ->
@@ -117,7 +117,7 @@ on_filter_packet({From, To, Packet}) ->
         _ ->
           ok
     end,
-    {From, To, Packet}.
+    Packet.
 
 %%%===================================================================
 %%% Internal functions
