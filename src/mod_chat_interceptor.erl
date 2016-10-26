@@ -27,15 +27,14 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, send_cart_action_result_packet/4]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
--export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4, process_cart_action/4]).
+-export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
 
 %-record(state, {config}).
 
 %-define(INFO_MSG, "custom_plugin_ROPOSO").
--define(NS_RECEIPTS, <<"urn:xmpp:receipts">>).
 
 -ifdef(TEST).
 -compile(export_all).
@@ -58,7 +57,6 @@ start(Host, _Opts) ->
   ejabberd_hooks:add(filter_packet, global, ?MODULE, on_filter_packet, 2),
 %%  ejabberd_hooks:add(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
   ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
-  ejabberd_hooks:add(user_send_packet, Host, ?MODULE, process_cart_action, 14),
 %%  capture packets received by user
 %%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
@@ -72,7 +70,6 @@ stop(Host) ->
   ejabberd_hooks:delete(filter_packet, global, ?MODULE, task, 2),
 %%  ejabberd_hooks:delete(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
   ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
-  ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, process_cart_action, 14),
   % delete packets received by user
   %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
@@ -88,12 +85,7 @@ mod_opt_type(block_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(unblock_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(block_unblock_token) -> fun iolist_to_binary/1;
 mod_opt_type(block_list_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(cart_action_add_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(cart_action_remove_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(cart_action_oos_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(cart_get_url_get) -> fun iolist_to_binary/1;
-mod_opt_type(cart_action_token) -> fun iolist_to_binary/1;
-mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post, cart_action_add_url_post, cart_action_remove_url_post, cart_action_oos_url_post, cart_get_url_get, cart_action_token].
+mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post].
 
 add_timestamp(Pkt, LServer) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
@@ -140,65 +132,6 @@ update_vcard(User, Server) ->
 update_vcard_of_user(User, Server) ->
   Key = rpc:async_call(node(), mod_chat_interceptor, update_vcard, [User, Server]),
   Key.
-
-process_cart_action(Pkt, _, From, To) ->
-  XmlP = Pkt,
-  {_Xmlel, _Type, _Details, _Body} = XmlP,
-  case _Type of
-    <<"message">> ->
-      Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
-      case Type of
-        <<"chat">> ->
-          Body = fxml:get_path_s(XmlP, [{elem, list_to_binary("body")}, cdata]),
-          case Body of
-            <<"">> ->
-              ProcessPacket = false;
-            _ ->
-              {BodyJSON} = jiffy:decode(Body),
-              {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-              MessageType = proplists:get_value(<<"ty">>, BodyBlock),
-              ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
-              if
-                MessageType == <<"cs_sp">>; MessageType == <<"cs_rmp">>; MessageType == <<"cs_oos">> ->
-                  ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
-                  CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
-                  Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlP),
-                  {CartActionResponseJSON} = jiffy:decode(CartActionResponse),
-                  GSCCode = proplists:get_value(<<"gsc">>, CartActionResponseJSON),
-                  case GSCCode of
-                    <<"700">> ->
-                      ProcessPacket = true;
-                    _ ->
-                      ProcessPacket = false
-                  end;
-                MessageType == <<"cr_get">> ->
-                  ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
-                  ProcessPacket = false,
-                  CartGetResponse = cart_get(From, BodyJSON),
-                  case CartGetResponse of
-                    <<"Failure">> ->
-                      ?INFO_MSG("Error getting cart info", []);
-                    _ ->
-%                      ?INFO_MSG("Cart get response: ~p", [binary_to_list(CartGetResponse)]),
-                      send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlP)
-                  end;
-                true ->
-                  ProcessPacket = true
-              end
-          end;
-        _ ->
-          ProcessPacket = true
-      end;
-    _ ->
-      ProcessPacket = true
-  end,
-  case ProcessPacket of
-    true ->
-      ?INFO_MSG("Processing packet", []),
-      XmlP;
-    false ->
-      ?INFO_MSG("Skipping packet", [])
-  end.
 
 on_user_send_packet(Pkt, _, _, To) ->
   XmlP = Pkt,
@@ -290,139 +223,6 @@ on_filter_packet(Packet) ->
   PacketN = task_chat(Packet),
   ?INFO_MSG("************ Packet processing ends ************~n~n", []),
   PacketN.
-
-cart_action(From, To, BodyJSON, Action) ->
-  {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-  ProductId = proplists:get_value(<<"id">>, BodyBlock),
-  Server = From#jid.lserver,
-  Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
-  case Action of
-    <<"cs_sp">> ->
-      Buyer = From#jid.luser,
-      Seller = To#jid.luser,
-      {BodyDet} = proplists:get_value(<<"det">>, BodyJSON),
-      ProductJSON = jiffy:encode(proplists:get_value(ProductId, BodyDet)),
-      CartActionAddUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_add_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-      Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"sdata">>,ProductJSON},{<<"token">>,Token}]}),
-      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionAddUrl, Data]),
-      Response = httpc:request(post, {CartActionAddUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
-    <<"cs_rmp">> ->
-      Buyer = From#jid.luser,
-      Seller = To#jid.luser,
-      CartActionRemoveUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_remove_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-      Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"seid">>,ProductId},{<<"token">>,Token}]}),
-      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionRemoveUrl, Data]),
-      Response = httpc:request(post, {CartActionRemoveUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
-    <<"cs_oos">> ->
-      Buyer = To#jid.luser,
-      Seller = From#jid.luser,
-      CartActionOOSUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_action_oos_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-      Data = jiffy:encode({[{<<"usereid">>,Buyer},{<<"sellereid">>,Seller},{<<"seid">>,ProductId},{<<"token">>,Token}]}),
-      ?INFO_MSG("Sending post request to ~s with body \"~s\"", [CartActionOOSUrl, Data]),
-      Response = httpc:request(post, {CartActionOOSUrl, [{"Content-Type", "application/json"}], "application/json", Data}, [], []);
-    _ ->
-      Response = {error, {<<"Incorrect type for Cart Action">>, Action}}
-  end,
-  case Response of
-    {ok, {_, _, ResponseBody}} ->
-      ?INFO_MSG("Response body: ~p", [ResponseBody]);
-%      {ResponseBodyJSON} = jiffy:decode(ResponseBody),
-%      GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
-%      case GSCCode of
-%        <<"700">> -> <<"Success">>;
-%        <<"600">> ->
-%          DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
-%          ?INFO_MSG("Error: ~s", [DataR]),
-%          <<"Failure">>;
-%        _ -> <<"Failure">>
-%      end;
-    {error, {ErrorReason, _}} ->
-      ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
-      ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++ "\"}";
-    _ ->
-      ResponseBody = "{\"gsc\":\"600\",\"message\":\"Unknown error\"}"
-  end,
-  list_to_binary(ResponseBody).
-
-cart_get(From, BodyJSON) ->
-  {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-  Buyer = From#jid.luser,
-  Seller = proplists:get_value(<<"uid">>, BodyBlock),
-  Server = From#jid.lserver,
-  Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
-  CartGetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_get_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
-  CartGetUrlFull = CartGetUrl ++ "/" ++ binary_to_list(Token) ++ "/" ++ binary_to_list(Buyer) ++ "/" ++ binary_to_list(Seller),
-  ?INFO_MSG("Sending get request to ~s", [CartGetUrlFull]),
-  Response = httpc:request(get, {CartGetUrlFull, []}, [], []),
-  case Response of
-    {ok, {_, _, ResponseBody}} ->
-      ?INFO_MSG("Response body: ~p", [ResponseBody]);
-%      {ResponseBodyJSON} = jiffy:decode(ResponseBody),
-%      GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSON),
-%      case GSCCode of
-%        <<"700">> ->
-%          Data = proplists:get_value(<<"data">>, ResponseBodyJSON),
-%          jiffy:encode(Data);
-%        <<"600">> ->
-%          DataR = proplists:get_value(<<"message">>, ResponseBodyJSON),
-%          ?INFO_MSG("Error: ~s", [DataR]),
-%          <<"Failure">>;
-%        _ -> <<"Failure">>
-%      end;
-    {error, {ErrorReason, _}} ->
-      ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
-      ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++ "\"}";
-    _ ->
-      ResponseBody = "{\"gsc\":\"600\",\"message\":\"Unknown error\"}"
-  end,
-  list_to_binary(ResponseBody).
-
-send_cart_action_result_packet_async(From, To, CartActionResponse, Packet) ->
-  ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(From), binary_to_list(To#jid.luser)]),
-  Key = rpc:async_call(node(), mod_chat_interceptor, send_cart_action_result_packet, [From, To, CartActionResponse, Packet]),
-  Key.
-
-send_cart_action_result_packet(From, To, CartActionResponse, Packet) ->
-  ID = fxml:get_tag_attr_s(<<"id">>, Packet),
-  IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-  Body = list_to_binary("{\"block\":{\"ty\":\"cr_ack\",\"data\":" ++ binary_to_list(CartActionResponse) ++ "}}"),
-  XmlBody = #xmlel{name = <<"message">>,
-                   attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
-                   children = [#xmlel{name = <<"body">>,
-                                      children = [{xmlcdata, Body}]},
-                               #xmlel{name = <<"received">>,
-                                      attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ID}],
-                                      children = []}]},
-  TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
-  case TimeStamp of
-    <<>> ->
-      XmlN = jlib:add_delay_info(XmlBody, From, erlang:timestamp(), <<"Cart Action Acknowledgement">>);
-    _ ->
-      TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
-      XmlN = jlib:add_delay_info(XmlBody, From, TimeStampValue, <<"Cart Action Acknowledgement">>)
-  end,
-  ejabberd_router:route(jlib:string_to_jid(From), To, XmlN).
-
-send_cart_get_data_packet(From, To, Data, Packet) ->
-  ID = fxml:get_tag_attr_s(<<"id">>, Packet),
-  IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-  Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"data\":" ++ binary_to_list(Data) ++ "}}"),
-  XmlBody = #xmlel{name = <<"message">>,
-                   attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
-                   children = [#xmlel{name = <<"body">>,
-                                      children = [{xmlcdata, Body}]},
-                               #xmlel{name = <<"received">>,
-                                      attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ID}],
-                                      children = []}]},
-  TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
-  case TimeStamp of
-    <<>> ->
-      XmlN = jlib:add_delay_info(XmlBody, From, erlang:timestamp(), <<"Cart Info">>);
-    _ ->
-      TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
-      XmlN = jlib:add_delay_info(XmlBody, From, TimeStampValue, <<"Cart Info">>)
-  end,
-  ejabberd_router:route(jlib:string_to_jid(From), To, XmlN).
 
 task_chat({From, To, XmlP}) ->
   XmlStr = binary_to_list(fxml:element_to_binary(XmlP)),
