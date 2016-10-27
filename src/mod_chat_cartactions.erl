@@ -203,8 +203,13 @@ cart_get(From, BodyJSON) ->
     ?INFO_MSG("Sending get request to ~s", [CartGetUrlFull]),
     Response = httpc:request(get, {CartGetUrlFull, []}, [{timeout, Timeout}], []),
     case Response of
-        {ok, {_, _, ResponseBody}} ->
-            ?INFO_MSG("Response body: ~p", [ResponseBody]);
+        {ok, {_, _, ResponseBodyOriginal}} ->
+            ?INFO_MSG("Response body: ~p", [ResponseBodyOriginal]),
+            {ResponseBodyJSONOriginal} = jiffy:decode(ResponseBodyOriginal),
+            {ResponseBodyBlockOriginal} = proplists:get_value(<<"block">>, ResponseBodyJSONOriginal),
+            ResponseBodyBlock = lists:append(ResponseBodyBlockOriginal, [{<<"uid">>, Seller}]),
+            ResponseBodyJSON = lists:append(proplists:delete(<<"block">>, ResponseBodyJSONOriginal), [{<<"block">>, {ResponseBodyBlock}}]),
+            ResponseBody = jiffy:encode({ResponseBodyJSON});
         {error, {ErrorReason, _}} ->
             ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
             ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++ "\"}";
