@@ -206,10 +206,16 @@ cart_get(From, BodyJSON) ->
         {ok, {_, _, ResponseBodyOriginal}} ->
             ?INFO_MSG("Response body: ~p", [ResponseBodyOriginal]),
             {ResponseBodyJSONOriginal} = jiffy:decode(ResponseBodyOriginal),
-            {ResponseBodyBlockOriginal} = proplists:get_value(<<"block">>, ResponseBodyJSONOriginal),
-            ResponseBodyBlock = lists:append(ResponseBodyBlockOriginal, [{<<"uid">>, Seller}]),
-            ResponseBodyJSON = lists:append(proplists:delete(<<"block">>, ResponseBodyJSONOriginal), [{<<"block">>, {ResponseBodyBlock}}]),
-            ResponseBody = jiffy:encode({ResponseBodyJSON});
+            GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSONOriginal),
+            case GSCCode of
+                <<"700">> ->
+                    {ResponseBodyBlockOriginal} = proplists:get_value(<<"block">>, ResponseBodyJSONOriginal),
+                    ResponseBodyBlock = lists:append(ResponseBodyBlockOriginal, [{<<"uid">>, Seller}]),
+                    ResponseBodyJSON = lists:append(proplists:delete(<<"block">>, ResponseBodyJSONOriginal), [{<<"block">>, {ResponseBodyBlock}}]),
+                    ResponseBody = jiffy:encode({ResponseBodyJSON});
+                _ ->
+                    ResponseBody = ResponseBodyOriginal
+            end;
         {error, {ErrorReason, _}} ->
             ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
             ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++ "\"}";
