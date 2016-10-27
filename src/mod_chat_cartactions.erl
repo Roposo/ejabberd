@@ -41,7 +41,7 @@ mod_opt_type(cart_action_remove_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_oos_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(cart_get_url_get) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_token) -> fun iolist_to_binary/1;
-mod_opt_type(cart_action_timeout_millis) -> fun iolist_to_binary/1;
+mod_opt_type(cart_action_timeout_millis) -> fun (I) when is_integer(I), I > 0 -> I end;
 mod_opt_type(_) -> [cart_action_add_url_post, cart_action_remove_url_post, cart_action_oos_url_post, cart_get_url_get, cart_action_token, cart_action_timeout_millis].
 
 on_user_send_packet(Packet, _, From, To) ->
@@ -133,7 +133,7 @@ cart_action(From, To, BodyJSON, Action) ->
     ProductId = proplists:get_value(<<"id">>, BodyBlock),
     Server = From#jid.lserver,
     Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
-    Timeout = gen_mod:get_module_opt(Server, ?MODULE, cart_action_timeout_millis, fun(S) -> iolist_to_binary(S) end, 5000),
+    Timeout = gen_mod:get_module_opt(Server, ?MODULE, cart_action_timeout_millis, fun(I) when is_integer(I), I > 0 -> I end, 5000),
     case Action of
         <<"cs_sp">> ->
             Buyer = From#jid.luser,
@@ -185,7 +185,7 @@ cart_get(From, BodyJSON) ->
     Seller = proplists:get_value(<<"uid">>, BodyBlock),
     Server = From#jid.lserver,
     Token = gen_mod:get_module_opt(Server, ?MODULE, cart_action_token, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
-    Timeout = gen_mod:get_module_opt(Server, ?MODULE, cart_action_timeout_millis, fun(S) -> iolist_to_binary(S) end, 5000),
+    Timeout = gen_mod:get_module_opt(Server, ?MODULE, cart_action_timeout_millis, fun(I) when is_integer(I), I > 0 -> I end, 5000),
     CartGetUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, cart_get_url_get, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
     CartGetUrlFull = CartGetUrl ++ "/" ++ binary_to_list(Token) ++ "/" ++ binary_to_list(Buyer) ++ "/" ++ binary_to_list(Seller),
     ?INFO_MSG("Sending get request to ~s", [CartGetUrlFull]),
