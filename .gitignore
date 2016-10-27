@@ -48,3 +48,5 @@ XmppAddr.hrl
 /mnesiadb
 /.rebar
 /installed/
+/.idea
+/*.iml

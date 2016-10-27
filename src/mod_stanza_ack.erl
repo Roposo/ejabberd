@@ -66,7 +66,7 @@ on_user_send_packet(Packet, _C2SState, From, To) ->
     Packet.
 
 check_should_acknowledge_and_send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->
-    case should_acknowledge(Packet) of 
+    case should_acknowledge(Packet, From#jid.lserver) of
         S when (S==true) ->
             send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid);
         false ->
@@ -82,7 +82,7 @@ check_should_acknowledge_and_send_ack_response_async(From, To, Packet, RegisterF
     Key = rpc:async_call(node(), mod_stanza_ack, check_should_acknowledge_and_send_ack_response, [From, To, Packet, RegisterFromJid, RegisterToJid]),
     Key.
 
-should_acknowledge(#xmlel{name = <<"message">>} = Packet) ->
+should_acknowledge(#xmlel{name = <<"message">>} = Packet, Server) ->
     case {fxml:get_tag_attr_s(<<"type">>, Packet),
           fxml:get_subtag_cdata(Packet, <<"body">>)} of
         {<<"error">>, _} ->
@@ -91,21 +91,22 @@ should_acknowledge(#xmlel{name = <<"message">>} = Packet) ->
             %% Empty body
             false;
         {_, Body} ->
+            CartActionShortlist = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_shortlist, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionRemove = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_remove, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionMarkOOS = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_mark_oos, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionCheckout = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_checkout, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionGet = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_get, fun(S) -> iolist_to_binary(S) end, <<"">>),
             {BodyJSON} = jiffy:decode(Body),
             {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
             BodyTy = proplists:get_value(<<"ty">>, BodyBlock),
-            case BodyTy of
-                <<"cs_sp">> -> false;
-                <<"cs_rmp">> -> false;
-                <<"cs_oos">> -> false;
-                <<"cr_get">> -> false;
-                <<"cr_cp">> -> false;
+            case lists:member(BodyTy, [CartActionShortlist, CartActionRemove, CartActionMarkOOS, CartActionCheckout, CartActionGet]) of
+                true -> false;
                 _ -> true
             end;
         _ ->
             true
     end;
-should_acknowledge(#xmlel{}) ->
+should_acknowledge(#xmlel{}, _) ->
     false.
 
 send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->

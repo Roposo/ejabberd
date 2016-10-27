@@ -609,6 +609,11 @@ modules:
     cart_get_url_get: "http://localhost:9000/v3/cart-info"
     cart_action_token: ""
     cart_action_timeout_millis: 5000
+    cart_action_type_shortlist: "cs_sp"
+    cart_action_type_remove: "cs_rmp"
+    cart_action_type_mark_oos: "cs_oos"
+    cart_action_type_checkout: "cr_cp"
+    cart_action_type_get: "cr_get"
   mod_chat_interceptor:
     push_url_post: "http://localhost:9020/chat/send_push"
     vcard_url_post: "http://localhost:9020/chat/get_vcard_xml"
