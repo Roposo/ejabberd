@@ -91,13 +91,7 @@ on_user_send_packet(Packet, _, From, To) ->
                                     ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
                                     ProcessPacket = false,
                                     CartGetResponse = cart_get(From, BodyJSON),
-                                    case CartGetResponse of
-                                        <<"Failure">> ->
-                                            ?INFO_MSG("Error getting cart info", []);
-                                        _ ->
-%                                            ?INFO_MSG("Cart get response: ~p", [binary_to_list(CartGetResponse)]),
-                                            send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlP)
-                                    end;
+                                    send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlP);
                                 true ->
                                     ProcessPacket = true
                             end
@@ -116,26 +110,27 @@ on_user_send_packet(Packet, _, From, To) ->
             ?INFO_MSG("Skipping packet", [])
     end.
 
-send_cart_action_result_packet(From, To, CartActionResponse, Packet) ->
+send_cart_action_result_packet(Server, To, CartActionResponse, Packet) ->
     ID = fxml:get_tag_attr_s(<<"id">>, Packet),
     IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-    Body = list_to_binary("{\"block\":{\"ty\":\"cr_ack\",\"data\":" ++ binary_to_list(CartActionResponse) ++ "}}"),
+    Body = CartActionResponse,
     XmlBody = #xmlel{name = <<"message">>,
-                     attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
+                     attrs = [{<<"from">>, Server}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
                      children = [#xmlel{name = <<"body">>,
                                         children = [{xmlcdata, Body}]},
                                  #xmlel{name = <<"received">>,
                                         attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ID}],
                                         children = []}]},
+    TimestampTag = gen_mod:get_module_opt(Server, mod_chat_interceptor, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
     TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
     case TimeStamp of
         <<>> ->
-            XmlN = jlib:add_delay_info(XmlBody, From, erlang:timestamp(), <<"Cart Action Acknowledgement">>);
+            XmlN = jlib:add_delay_info(XmlBody, Server, erlang:timestamp(), TimestampTag);
         _ ->
             TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
-            XmlN = jlib:add_delay_info(XmlBody, From, TimeStampValue, <<"Cart Action Acknowledgement">>)
+            XmlN = jlib:add_delay_info(XmlBody, Server, TimeStampValue, TimestampTag)
     end,
-    ejabberd_router:route(jlib:string_to_jid(From), To, XmlN).
+    ejabberd_router:route(jlib:string_to_jid(Server), To, XmlN).
 
 %%%===================================================================
 %%% Internal functions
@@ -218,15 +213,15 @@ cart_get(From, BodyJSON) ->
     end,
     list_to_binary(ResponseBody).
 
-send_cart_action_result_packet_async(From, To, CartActionResponse, Packet) ->
-    ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(From), binary_to_list(To#jid.luser)]),
-    Key = rpc:async_call(node(), mod_chat_cartactions, send_cart_action_result_packet, [From, To, CartActionResponse, Packet]),
+send_cart_action_result_packet_async(Server, To, CartActionResponse, Packet) ->
+    ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(Server), binary_to_list(To#jid.luser)]),
+    Key = rpc:async_call(node(), mod_chat_cartactions, send_cart_action_result_packet, [Server, To, CartActionResponse, Packet]),
     Key.
 
 send_cart_get_data_packet(Server, To, Data, Packet) ->
     ID = fxml:get_tag_attr_s(<<"id">>, Packet),
     IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-    Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"data\":" ++ binary_to_list(Data) ++ "}}"),
+    Body = Data,
     XmlBody = #xmlel{name = <<"message">>,
                      attrs = [{<<"from">>, Server}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
                      children = [#xmlel{name = <<"body">>,
