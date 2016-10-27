@@ -132,6 +132,8 @@ route_auto_reply_to_both(Body, From, To, ID) ->
     XmlReply = #xmlel{name = <<"message">>,
                       attrs = [{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
                       children = [#xmlel{name = <<"body">>, children = [{xmlcdata, Body}]}]},
-    XmlPacket = jlib:add_delay_info(XmlReply, From#jid.lserver, erlang:timestamp(), <<"Chat Auto-response">>),
+    Server = From#jid.lserver,
+    TimestampTag = gen_mod:get_module_opt(Server, mod_chat_interceptor, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
+    XmlPacket = jlib:add_delay_info(XmlReply, Server, erlang:timestamp(), TimestampTag),
     ejabberd_router:route(From, To, XmlPacket),
     ejabberd_router:route(To, From, XmlPacket).

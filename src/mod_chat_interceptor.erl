@@ -27,7 +27,7 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/2, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/3, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
@@ -85,11 +85,13 @@ mod_opt_type(block_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(unblock_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(block_unblock_token) -> fun iolist_to_binary/1;
 mod_opt_type(block_list_url_post) -> fun iolist_to_binary/1;
-mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post, block_unblock_token, block_list_url_post].
+mod_opt_type(timestamp_tag) -> fun iolist_to_binary/1;
+mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post,
+  block_unblock_token, block_list_url_post, timestamp_tag].
 
-add_timestamp(Pkt, LServer) ->
+add_timestamp(Pkt, LServer, TimestampTag) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
-  jlib:add_delay_info(Pkt, LServer, erlang:timestamp(), <<"Chat Interceptor">>).
+  jlib:add_delay_info(Pkt, LServer, erlang:timestamp(), TimestampTag).
 
 send_push_notification_to_user(From, To, Body, Type, Server) ->
   PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, push_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
@@ -146,7 +148,9 @@ on_user_send_packet(Pkt, _, _, To) ->
             <<"">> ->
               XmlN = XmlP;
             _ ->
-              XmlN = add_timestamp(XmlP, To#jid.lserver)
+              Server = To#jid.lserver,
+              TimestampTag = gen_mod:get_module_opt(Server, ?MODULE, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
+              XmlN = add_timestamp(XmlP, Server, TimestampTag)
 %              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
           end;
         _ ->

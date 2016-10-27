@@ -118,11 +118,13 @@ send_ack_response(From, To, Packet, RegisterFromJid, RegisterToJid) ->
                                         attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ReceiptId}],
               				children = []}]},
     TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
+    Server = From#jid.lserver,
+    TimestampTag = gen_mod:get_module_opt(Server, mod_chat_interceptor, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
     case TimeStamp of
       <<>> ->
-        XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, erlang:timestamp(), <<"Chat Acknowledgement">>);
+        XmlN = jlib:add_delay_info(XmlBody, Server, erlang:timestamp(), TimestampTag);
       _ ->
         TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
-        XmlN = jlib:add_delay_info(XmlBody, From#jid.lserver, TimeStampValue, <<"Chat Acknowledgement">>)
+        XmlN = jlib:add_delay_info(XmlBody, Server, TimeStampValue, TimestampTag)
     end,
     ejabberd_router:route(jlib:string_to_jid(RegisterFromJid), RegisterToJid, XmlN).

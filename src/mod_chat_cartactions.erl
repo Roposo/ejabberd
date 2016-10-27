@@ -223,24 +223,25 @@ send_cart_action_result_packet_async(From, To, CartActionResponse, Packet) ->
     Key = rpc:async_call(node(), mod_chat_cartactions, send_cart_action_result_packet, [From, To, CartActionResponse, Packet]),
     Key.
 
-send_cart_get_data_packet(From, To, Data, Packet) ->
+send_cart_get_data_packet(Server, To, Data, Packet) ->
     ID = fxml:get_tag_attr_s(<<"id">>, Packet),
     IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
     Body = list_to_binary("{\"block\":{\"ty\":\"cr_res\",\"data\":" ++ binary_to_list(Data) ++ "}}"),
     XmlBody = #xmlel{name = <<"message">>,
-                     attrs = [{<<"from">>, From}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
+                     attrs = [{<<"from">>, Server}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
                      children = [#xmlel{name = <<"body">>,
                                         children = [{xmlcdata, Body}]},
                                  #xmlel{name = <<"received">>,
                                         attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ID}],
                                         children = []}]},
+    TimestampTag = gen_mod:get_module_opt(Server, mod_chat_interceptor, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
     TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
     case TimeStamp of
         <<>> ->
-            XmlN = jlib:add_delay_info(XmlBody, From, erlang:timestamp(), <<"Cart Info">>);
+            XmlN = jlib:add_delay_info(XmlBody, Server, erlang:timestamp(), TimestampTag);
         _ ->
             TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
-            XmlN = jlib:add_delay_info(XmlBody, From, TimeStampValue, <<"Cart Info">>)
+            XmlN = jlib:add_delay_info(XmlBody, Server, TimeStampValue, TimestampTag)
     end,
-    ejabberd_router:route(jlib:string_to_jid(From), To, XmlN).
+    ejabberd_router:route(jlib:string_to_jid(Server), To, XmlN).
 
