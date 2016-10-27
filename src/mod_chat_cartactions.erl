@@ -206,21 +206,17 @@ cart_get(From, BodyJSON) ->
         {ok, {_, _, ResponseBodyOriginal}} ->
             ?INFO_MSG("Response body: ~p", [ResponseBodyOriginal]),
             {ResponseBodyJSONOriginal} = jiffy:decode(ResponseBodyOriginal),
-            GSCCode = proplists:get_value(<<"gsc">>, ResponseBodyJSONOriginal),
-            case GSCCode of
-                <<"700">> ->
-                    {ResponseBodyBlockOriginal} = proplists:get_value(<<"block">>, ResponseBodyJSONOriginal),
-                    ResponseBodyBlock = lists:append(ResponseBodyBlockOriginal, [{<<"uid">>, Seller}]),
-                    ResponseBodyJSON = lists:append(proplists:delete(<<"block">>, ResponseBodyJSONOriginal), [{<<"block">>, {ResponseBodyBlock}}]),
-                    ResponseBody = jiffy:encode({ResponseBodyJSON});
-                _ ->
-                    ResponseBody = ResponseBodyOriginal
-            end;
+            {ResponseBodyBlockOriginal} = proplists:get_value(<<"block">>, ResponseBodyJSONOriginal),
+            ResponseBodyBlock = lists:append(ResponseBodyBlockOriginal, [{<<"uid">>, Seller}]),
+            ResponseBodyJSON = lists:append(proplists:delete(<<"block">>, ResponseBodyJSONOriginal), [{<<"block">>, {ResponseBodyBlock}}]),
+            ResponseBody = binary_to_list(jiffy:encode({ResponseBodyJSON}));
         {error, {ErrorReason, _}} ->
             ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
-            ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++ "\"}";
+            ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++
+                "\",\"block\":{\"ty\":\"cc_rp\",\"uid\":\"" ++ binary_to_list(Seller) ++ "\"}}";
         _ ->
-            ResponseBody = "{\"gsc\":\"600\",\"message\":\"Unknown error\"}"
+            ResponseBody = "{\"gsc\":\"600\",\"message\":\"Unknown error\",\"block\":{\"ty\":\"cc_rp\",\"uid\":\"" ++
+                binary_to_list(Seller) ++ "\"}}"
     end,
     list_to_binary(ResponseBody).
 
