@@ -84,9 +84,13 @@ route_auto_reply(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
         {ok, {_, _, ResponseBody}} ->
             ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
             {ResponseJSON} = jiffy:decode(ResponseBody),
-            ChatBodyJSON = proplists:get_value(<<"data">>, ResponseJSON),
-            ChatBody = jiffy:encode(ChatBodyJSON),
-            route_auto_reply_to_both(ChatBody, From, To, ID);
+            {ChatBodyJSONData} = proplists:get_value(<<"data">>, ResponseJSON),
+            case proplists:lookup(<<"block">>, ChatBodyJSONData) of
+                none -> ok;
+                _ ->
+                    ChatBody = jiffy:encode({ChatBodyJSONData}),
+                    route_auto_reply_to_both(ChatBody, From, To, ID)
+            end;
         {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
         _ -> ok
     end.
