@@ -13,7 +13,8 @@
 
 %% API
 
--export([start/2, stop/1, depends/2, mod_opt_type/1, on_offline_message_hook/3, route_auto_reply/6, on_user_send_packet/4]).
+-export([start/2, stop/1, depends/2, mod_opt_type/1, on_offline_message_hook/3, route_auto_reply/6,
+    on_user_send_packet/4, route_auto_accept_chat_request/2]).
 
 -include("logger.hrl").
 -include_lib("ejabberd.hrl").
@@ -122,6 +123,20 @@ on_user_send_packet(Packet, _, From, To) ->
           ok
     end,
     Packet.
+
+route_auto_accept_chat_request(From, To) ->
+    XmlPacket1 = #xmlel{name = <<"presence">>,
+                        attrs = [{<<"to">>, jid:to_string(To)},
+                                 {<<"type">>, <<"subscribed">>}]},
+    Result = ejabberd_router:route(From, To, XmlPacket1),
+    case Result of
+        ok ->
+            XmlPacket2 = #xmlel{name = <<"presence">>,
+                                attrs = [{<<"to">>, jid:to_string(To)},
+                                         {<<"type">>, <<"subscribe">>}]},
+            ejabberd_router:route(From, To, XmlPacket2);
+        _ -> ok
+    end.
 
 %%%===================================================================
 %%% Internal functions

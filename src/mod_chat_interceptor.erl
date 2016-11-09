@@ -27,7 +27,8 @@
 %% API
 % Log chat program
 % It is based on user comments
--export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/3, send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1]).
+-export([task/0, task_chat/1, start/2, stop/1, to_a_text_file/1, chat_to_text_file/2, add_timestamp/3,
+  send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, auto_accept_chat_request/3]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
@@ -86,8 +87,9 @@ mod_opt_type(unblock_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(block_unblock_token) -> fun iolist_to_binary/1;
 mod_opt_type(block_list_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(timestamp_tag) -> fun iolist_to_binary/1;
+mod_opt_type(auto_accept_check_url_post) -> fun iolist_to_binary/1;
 mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_post, unblock_url_post,
-  block_unblock_token, block_list_url_post, timestamp_tag].
+  block_unblock_token, block_list_url_post, timestamp_tag, auto_accept_check_url_post].
 
 add_timestamp(Pkt, LServer, TimestampTag) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
@@ -133,6 +135,28 @@ update_vcard(User, Server) ->
 
 update_vcard_of_user(User, Server) ->
   Key = rpc:async_call(node(), mod_chat_interceptor, update_vcard, [User, Server]),
+  Key.
+
+auto_accept_chat_request(From, To, Server) ->
+  PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, auto_accept_check_url_post, fun(S) -> iolist_to_binary(S) end, <<"">>)),
+  FromP = string:concat("sender=", binary_to_list(From#jid.luser)),
+  ToP = string:concat("receiver=", binary_to_list(To#jid.luser)),
+  Data = string:join([FromP, ToP], "&"),
+  ?INFO_MSG("Sending post request to ~s with body \"~s\"", [PostUrl, Data]),
+  Response = httpc:request(post, {PostUrl, [], "application/x-www-form-urlencoded", Data}, [], []),
+  case Response of
+    {ok, {_, _, ResponseBody}} ->
+      ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
+      case ResponseBody of
+        "true" -> mod_chat_autoresponse:route_auto_accept_chat_request(To, From);
+        _ -> ok
+      end;
+    {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+    _ -> ok
+  end.
+
+auto_accept_chat_request_async(From, To, Server) ->
+  Key = rpc:async_call(node(), mod_chat_interceptor, auto_accept_chat_request, [From, To, Server]),
   Key.
 
 on_user_send_packet(Pkt, _, _, To) ->
@@ -282,7 +306,9 @@ task_chat({From, To, XmlP}) ->
                 <<"none">> ->
                   send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat invitation!", "subscribe_request", list_to_binary(ToServer)),
                   Key = update_vcard_of_user(list_to_binary(ToUid), list_to_binary(ToServer)),
-                  ?INFO_MSG("Async task initiated to update VCard (key: ~p)!", [Key]);
+                  ?INFO_MSG("Async task initiated to update VCard (key: ~p)!", [Key]),
+                  KeyAutoAccept = auto_accept_chat_request_async(From, jid:from_string(list_to_binary(ToJID)), list_to_binary(ToServer)),
+                  ?INFO_MSG("Async task initiated to auto-accept chat request if required (key: ~p)!", [KeyAutoAccept]);
                 <<"from">> ->
                   send_push_notification_to_user(binary_to_list(FromS), ToUid, "Chat acceptance!", "subscribe_accept", list_to_binary(ToServer));
                 _ ->

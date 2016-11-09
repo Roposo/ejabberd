@@ -627,6 +627,7 @@ modules:
     block_list_url_post: "http://localhost:9020/chat/get_block_list"
     vcard_image_type: "raw"
     timestamp_tag: "Chat Server"
+    auto_accept_check_url_post: "http://localhost:9020/chat/auto_accept_chat_request"
   mod_client_state: {}
   mod_configure: {} # requires mod_adhoc
   mod_disco: {}
