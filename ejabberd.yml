@@ -599,7 +599,8 @@ modules:
     access: announce
   mod_blocking: {} # requires mod_privacy
   mod_caps: {}
-  mod_carboncopy: {}
+  mod_carboncopy:
+    db_type: mnesia
   mod_chat_autoresponse:
     auto_reply_url_post: "http://localhost:9020/chat/get_auto_response_json"
   mod_chat_cartactions:
