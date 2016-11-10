@@ -184,7 +184,7 @@ cart_action(From, To, BodyJSON, Action) ->
         {ok, {_, _, ResponseBody}} ->
             ?INFO_MSG("Response body: ~p", [ResponseBody]);
         {error, {ErrorReason, _}} ->
-            ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
+            ?ERROR_MSG("Response received: {error, ~s}", [ErrorReason]),
             ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++ "\"}";
         _ ->
             ResponseBody = "{\"gsc\":\"600\",\"message\":\"Unknown error\"}"
@@ -211,7 +211,7 @@ cart_get(From, BodyJSON) ->
             ResponseBodyJSON = lists:append(proplists:delete(<<"block">>, ResponseBodyJSONOriginal), [{<<"block">>, {ResponseBodyBlock}}]),
             ResponseBody = binary_to_list(jiffy:encode({ResponseBodyJSON}));
         {error, {ErrorReason, _}} ->
-            ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]),
+            ?ERROR_MSG("Response received: {error, ~s}", [ErrorReason]),
             ResponseBody = "{\"gsc\":\"600\",\"message\":\"" ++ binary_to_list(ErrorReason) ++
                 "\",\"block\":{\"ty\":\"cc_rp\",\"uid\":\"" ++ binary_to_list(Seller) ++ "\"}}";
         _ ->

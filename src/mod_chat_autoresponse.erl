@@ -92,7 +92,7 @@ route_auto_reply(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
                     ChatBody = jiffy:encode({ChatBodyJSONData}),
                     route_auto_reply_to_both(ChatBody, From, To, ID)
             end;
-        {error, {ErrorReason, _}} -> ?INFO_MSG("Response received: {error, ~s}", [ErrorReason]);
+        {error, {ErrorReason, _}} -> ?ERROR_MSG("Response received: {error, ~s}", [ErrorReason]);
         _ -> ok
     end.
 
