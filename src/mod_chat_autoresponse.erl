@@ -91,10 +91,12 @@ route_auto_reply(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
         {ok, {_, _, ResponseBody}} ->
             ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
             {ResponseJSON} = jiffy:decode(ResponseBody),
-            {ChatBodyJSONData} = proplists:get_value(<<"data">>, ResponseJSON),
-            case proplists:lookup(<<"block">>, ChatBodyJSONData) of
+            {ChatBodyJSONDataOriginal} = proplists:get_value(<<"data">>, ResponseJSON),
+            case proplists:lookup(<<"block">>, ChatBodyJSONDataOriginal) of
                 none -> ok;
                 _ ->
+                    ChatBodyJSONData = lists:append(ChatBodyJSONDataOriginal,
+                        [{<<"origft">>, {[{<<"origfrom">>, jid:to_string(From)}, {<<"origto">>, jid:to_string(To)}]}}]),
                     ChatBody = jiffy:encode({ChatBodyJSONData}),
                     route_auto_reply_to_both(ChatBody, From, To, ID)
             end;
@@ -169,7 +171,6 @@ route_auto_reply_to_both(Body, From, To, ID) ->
     IDR = list_to_binary(binary_to_list(ID) ++ "_auto-reply"),
     XmlReply = #xmlel{name = <<"message">>,
                       attrs = [{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)},
-                               {<<"origfrom">>, jid:to_string(From)}, {<<"origto">>, jid:to_string(To)},
                                {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
                       children = [#xmlel{name = <<"body">>, children = [{xmlcdata, Body}]}]},
     Server = From#jid.lserver,
