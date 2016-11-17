@@ -121,6 +121,11 @@ on_user_send_packet(Packet, _, From, To) ->
                           ?INFO_MSG("Initiating async task to send auto reply...", []),
                           Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
                           ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
+                      <<"cr_pm">> ->
+                          ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+                          ?INFO_MSG("Initiating async task to send auto reply...", []),
+                          Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
+                          ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
                       _ ->
                           ok
                   end
