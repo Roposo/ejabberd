@@ -47,21 +47,27 @@ on_offline_message_hook(From, To, Packet) ->
             Body = fxml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
             case Body of
                 <<>> ->
-                  ok;
+                    ok;
                 _ ->
-                  {BodyJSON} = jiffy:decode(Body),
-                  {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-                  MessageType = proplists:get_value(<<"ty">>, BodyBlock),
-                  ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
-                  case MessageType of
-                      <<"cs_rp">> ->
-                          ID = fxml:get_tag_attr_s(<<"id">>, Packet),
-                          ?INFO_MSG("Initiating async task to send auto reply...", []),
-                          Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
-                          ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
-                      _ ->
-                          ok
-                  end
+                    {BodyJSON} = jiffy:decode(Body),
+                    {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+                    MessageType = proplists:get_value(<<"ty">>, BodyBlock),
+                    ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
+                    case MessageType of
+                        <<"cs_rp">> ->
+                            SSI = proplists:get_value(<<"ssi">>, BodyBlock),
+                            case SSI of
+                                true ->
+                                    ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+                                    ?INFO_MSG("Initiating async task to send auto reply...", []),
+                                    Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
+                                    ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
+                                _ ->
+                                    ok
+                            end;
+                        _ ->
+                            ok
+                    end
             end;
         _ ->
           ok
