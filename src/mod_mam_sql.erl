@@ -113,7 +113,6 @@ store(Pkt, LServer, {LUser, LHost}, Type, Peer, Nick, _Dir, TS) ->
                 "%(Nick)s) "
                 "on duplicate key update "
                 "username=%(SUser)s, "
-                "timestamp=%(TSinteger)d, "
                 "peer=%(LPeer)s, "
                 "bare_peer=%(BarePeer)s, "
                 "xml=%(XML)s, "
