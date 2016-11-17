@@ -168,7 +168,9 @@ route_auto_reply_async(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
 route_auto_reply_to_both(Body, From, To, ID) ->
     IDR = list_to_binary(binary_to_list(ID) ++ "_auto-reply"),
     XmlReply = #xmlel{name = <<"message">>,
-                      attrs = [{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
+                      attrs = [{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)},
+                               {<<"origfrom">>, jid:to_string(From)}, {<<"origto">>, jid:to_string(To)},
+                               {<<"xml:lang">>, <<"en">>}, {<<"type">>, <<"chat">>}, {<<"id">>, IDR}],
                       children = [#xmlel{name = <<"body">>, children = [{xmlcdata, Body}]}]},
     Server = From#jid.lserver,
     TimestampTag = gen_mod:get_module_opt(Server, mod_chat_interceptor, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
