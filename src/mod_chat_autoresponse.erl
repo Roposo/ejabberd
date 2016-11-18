@@ -96,7 +96,7 @@ route_auto_reply(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
                 none -> ok;
                 _ ->
                     ChatBodyJSONData = lists:append(ChatBodyJSONDataOriginal,
-                        [{<<"origft">>, {[{<<"origfrom">>, jid:to_string(From)}, {<<"origto">>, jid:to_string(To)}]}}]),
+                        [{<<"ft">>, {[{<<"from">>, jid:to_string(From)}, {<<"to">>, jid:to_string(To)}]}}]),
                     ChatBody = jiffy:encode({ChatBodyJSONData}),
                     route_auto_reply_to_both(ChatBody, From, To, ID)
             end;
