@@ -151,12 +151,12 @@ route_auto_accept_chat_request(From, To) ->
         _ -> ok
     end,
     case ejabberd_sm:get_user_resources(From#jid.luser, From#jid.lserver) of
-        [] ->
+        [] -> ok;
+        _ ->
             XmlPacket3 = #xmlel{name = <<"presence">>,
                                 attrs = [{<<"to">>, jid:to_string(To)},
-                                         {<<"type">>, <<"unavailable">>}]},
-            ejabberd_router:route(From, To, XmlPacket3);
-        _ -> ok
+                                         {<<"type">>, <<"available">>}]},
+            ejabberd_router:route(From, To, XmlPacket3)
     end.
 
 %%%===================================================================
