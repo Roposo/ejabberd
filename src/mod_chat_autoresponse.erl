@@ -140,16 +140,12 @@ on_user_send_packet(Packet, _, From, To) ->
 route_auto_accept_chat_request(From, To) ->
     XmlPacket1 = #xmlel{name = <<"presence">>,
                         attrs = [{<<"to">>, jid:to_string(To)},
+                                 {<<"type">>, <<"subscribe">>}]},
+    ejabberd_router:route(From, To, XmlPacket1),
+    XmlPacket2 = #xmlel{name = <<"presence">>,
+                        attrs = [{<<"to">>, jid:to_string(To)},
                                  {<<"type">>, <<"subscribed">>}]},
-    Result = ejabberd_router:route(From, To, XmlPacket1),
-    case Result of
-        ok ->
-            XmlPacket2 = #xmlel{name = <<"presence">>,
-                                attrs = [{<<"to">>, jid:to_string(To)},
-                                         {<<"type">>, <<"subscribe">>}]},
-            ejabberd_router:route(From, To, XmlPacket2);
-        _ -> ok
-    end,
+    ejabberd_router:route(From, To, XmlPacket2),
     case ejabberd_sm:get_user_resources(From#jid.luser, From#jid.lserver) of
         [] -> ok;
         _ ->

@@ -31,7 +31,8 @@
   send_push_notification_to_user/5, update_vcard/2, depends/2, mod_opt_type/1, auto_accept_chat_request/3]).
 
 %-export([on_filter_packet/1, post_to_server/5]).
--export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5, on_update_presence/3, on_user_send_packet/4]).
+-export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5,
+  on_update_presence/3, on_user_send_packet/4, on_user_receive_packet/5]).
 
 %-record(state, {config}).
 
@@ -59,7 +60,7 @@ start(Host, _Opts) ->
 %%  ejabberd_hooks:add(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
   ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
 %%  capture packets received by user
-%%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, task, 50),
+  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, on_user_receive_packet, 100),
 %%  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
   ok.
 
@@ -72,7 +73,7 @@ stop(Host) ->
 %%  ejabberd_hooks:delete(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
   ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
   % delete packets received by user
-  %ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, task, 50),
+  ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, on_user_receive_packet, 100),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
   ok.
 
@@ -137,7 +138,7 @@ update_vcard_of_user(User, Server) ->
   Key = rpc:async_call(node(), mod_chat_interceptor, update_vcard, [User, Server]),
   Key.
 
-auto_accept_chat_request(From, To, Server) ->
+should_auto_accept(From, To, Server) ->
   PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, auto_accept_check_url_post, fun(S) -> iolist_to_binary(S) end, <<"">>)),
   FromP = string:concat("sender=", binary_to_list(From#jid.luser)),
   ToP = string:concat("receiver=", binary_to_list(To#jid.luser)),
@@ -148,10 +149,18 @@ auto_accept_chat_request(From, To, Server) ->
     {ok, {_, _, ResponseBody}} ->
       ?INFO_MSG("Response received: {ok, ~s}", [ResponseBody]),
       case ResponseBody of
-        "true" -> mod_chat_autoresponse:route_auto_accept_chat_request(To, From);
-        _ -> ok
+        "true" -> true;
+        _ -> false
       end;
-    {error, {ErrorReason, _}} -> ?ERROR_MSG("Response received: {error, ~s}", [ErrorReason]);
+    {error, {ErrorReason, _}} ->
+      ?ERROR_MSG("Response received: {error, ~s}", [ErrorReason]),
+      false;
+    _ -> false
+  end.
+
+auto_accept_chat_request(From, To, Server) ->
+  case should_auto_accept(From, To, Server) of
+    true -> mod_chat_autoresponse:route_auto_accept_chat_request(To, From);
     _ -> ok
   end.
 
@@ -176,6 +185,36 @@ on_user_send_packet(Pkt, _, _, To) ->
               TimestampTag = gen_mod:get_module_opt(Server, ?MODULE, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
               XmlN = add_timestamp(XmlP, Server, TimestampTag)
 %              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
+          end;
+        _ ->
+          XmlN = XmlP
+      end;
+    _ ->
+      XmlN = XmlP
+  end,
+  XmlN.
+
+on_user_receive_packet(Pkt, _, _, From, To) ->
+  XmlP = Pkt,
+  case XmlP of
+    {_Xmlel, _Type, _Details, _Body} ->
+      case _Type of
+        <<"presence">> ->
+          Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
+          case Type of
+            <<"subscribe">> ->
+              ?INFO_MSG("********************* Subscribe packet from ~s to ~s is ~s *********************",
+                [From#jid.luser, To#jid.luser, fxml:element_to_binary(XmlP)]),
+              case should_auto_accept(From, To, From#jid.lserver) of
+                true ->
+                  #xmlel{name = Name, attrs = Attrs, children = Els} = XmlP,
+                  NewEls = [#xmlel{name = <<"autoaccept">>, children = [{xmlcdata, <<"true">>}]} | Els],
+                  XmlN = #xmlel{name = Name, attrs = Attrs, children = NewEls};
+                false ->
+                  XmlN = XmlP
+              end;
+            _ ->
+              XmlN = XmlP
           end;
         _ ->
           XmlN = XmlP
