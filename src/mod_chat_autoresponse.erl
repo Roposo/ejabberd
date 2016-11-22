@@ -74,7 +74,9 @@ on_offline_message_hook(From, To, Packet) ->
     end.
 
 route_auto_reply(BodyBlock, From, To, ID, PostUrlConfig, MessageType) ->
-    PostUrl = binary_to_list(gen_mod:get_module_opt(From#jid.lserver, ?MODULE, PostUrlConfig, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
+    timer:sleep(1000),
+    PostUrl = binary_to_list(gen_mod:get_module_opt(From#jid.lserver, ?MODULE, PostUrlConfig,
+        fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
     UserP = string:concat("user=", binary_to_list(From#jid.luser)),
     MsgTyP = string:concat("msgtype=", binary_to_list(MessageType)),
     case MessageType of
@@ -111,26 +113,26 @@ on_user_send_packet(Packet, _, From, To) ->
             Body = fxml:get_path_s(Packet, [{elem, <<"body">>}, cdata]),
             case Body of
                 <<>> ->
-                  ok;
+                    ok;
                 _ ->
-                  {BodyJSON} = jiffy:decode(Body),
-                  {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
-                  MessageType = proplists:get_value(<<"ty">>, BodyBlock),
-                  ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
-                  case MessageType of
-                      <<"cr_cp">> ->
-                          ID = fxml:get_tag_attr_s(<<"id">>, Packet),
-                          ?INFO_MSG("Initiating async task to send auto reply...", []),
-                          Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
-                          ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
-                      <<"cr_pm">> ->
-                          ID = fxml:get_tag_attr_s(<<"id">>, Packet),
-                          ?INFO_MSG("Initiating async task to send auto reply...", []),
-                          Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
-                          ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
-                      _ ->
-                          ok
-                  end
+                    {BodyJSON} = jiffy:decode(Body),
+                    {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
+                    MessageType = proplists:get_value(<<"ty">>, BodyBlock),
+                    ?INFO_MSG("Message type: ~p", [binary_to_list(MessageType)]),
+                    case MessageType of
+                        <<"cr_cp">> ->
+                            ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+                            ?INFO_MSG("Initiating async task to send auto reply...", []),
+                            Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
+                            ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
+                        <<"cr_pm">> ->
+                            ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+                            ?INFO_MSG("Initiating async task to send auto reply...", []),
+                            Key = route_auto_reply_async(BodyBlock, To, From, ID, auto_reply_url_post, MessageType),
+                            ?INFO_MSG("Async task initiated to send auto reply (key: ~p)!", [Key]);
+                        _ ->
+                            ok
+                    end
             end;
         _ ->
           ok
