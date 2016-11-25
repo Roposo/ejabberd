@@ -492,7 +492,7 @@ shaper_rules:
   ## Maximum number of offline messages that users can have:
   max_user_offline_messages:
     - 5000: admin
-    - 100
+    - 1000
   ## For C2S connections, all users except admins use the "normal" shaper
   c2s_shaper:
     - none: admin
