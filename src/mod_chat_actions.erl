@@ -47,9 +47,10 @@ mod_opt_type(cart_action_type_remove) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_type_mark_oos) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_type_checkout) -> fun iolist_to_binary/1;
 mod_opt_type(cart_action_type_get) -> fun iolist_to_binary/1;
+mod_opt_type(custom_action_chat_delete) -> fun iolist_to_binary/1;
 mod_opt_type(_) -> [cart_action_add_url_post, cart_action_remove_url_post, cart_action_oos_url_post, cart_get_url_get,
     cart_action_token, cart_action_timeout_millis, cart_action_type_shortlist, cart_action_type_remove,
-    cart_action_type_mark_oos, cart_action_type_checkout, cart_action_type_get].
+    cart_action_type_mark_oos, cart_action_type_checkout, cart_action_type_get, custom_action_chat_delete].
 
 on_user_send_packet(Packet, _, From, To) ->
     XmlP = Packet,

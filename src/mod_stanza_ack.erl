@@ -91,15 +91,16 @@ should_acknowledge(#xmlel{name = <<"message">>} = Packet, Server) ->
             %% Empty body
             false;
         {_, Body} ->
-            CartActionShortlist = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_shortlist, fun(S) -> iolist_to_binary(S) end, <<"">>),
-            CartActionRemove = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_remove, fun(S) -> iolist_to_binary(S) end, <<"">>),
-            CartActionMarkOOS = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_mark_oos, fun(S) -> iolist_to_binary(S) end, <<"">>),
-            CartActionCheckout = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_checkout, fun(S) -> iolist_to_binary(S) end, <<"">>),
-            CartActionGet = gen_mod:get_module_opt(Server, mod_chat_cartactions, cart_action_type_get, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionShortlist = gen_mod:get_module_opt(Server, mod_chat_actions, cart_action_type_shortlist, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionRemove = gen_mod:get_module_opt(Server, mod_chat_actions, cart_action_type_remove, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionMarkOOS = gen_mod:get_module_opt(Server, mod_chat_actions, cart_action_type_mark_oos, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionCheckout = gen_mod:get_module_opt(Server, mod_chat_actions, cart_action_type_checkout, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CartActionGet = gen_mod:get_module_opt(Server, mod_chat_actions, cart_action_type_get, fun(S) -> iolist_to_binary(S) end, <<"">>),
+            CustomActionChatDelete = gen_mod:get_module_opt(Server, mod_chat_actions, custom_action_chat_delete, fun(S) -> iolist_to_binary(S) end, <<"">>),
             {BodyJSON} = jiffy:decode(Body),
             {BodyBlock} = proplists:get_value(<<"block">>, BodyJSON),
             BodyTy = proplists:get_value(<<"ty">>, BodyBlock),
-            case lists:member(BodyTy, [CartActionShortlist, CartActionRemove, CartActionMarkOOS, CartActionCheckout, CartActionGet]) of
+            case lists:member(BodyTy, [CartActionShortlist, CartActionRemove, CartActionMarkOOS, CartActionCheckout, CartActionGet, CustomActionChatDelete]) of
                 true -> false;
                 _ -> true
             end;
