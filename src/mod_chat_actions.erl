@@ -7,7 +7,7 @@
 %%% Created : 26 Oct 2016 by Vishal Singh <vishal@roposo.com>
 %%%-------------------------------------------------------------------
 
--module(mod_chat_cartactions).
+-module(mod_chat_actions).
 
 -behavior(gen_mod).
 
@@ -74,11 +74,13 @@ on_user_send_packet(Packet, _, From, To) ->
                             CartActionMarkOOS = gen_mod:get_module_opt(Server, ?MODULE, cart_action_type_mark_oos, fun(S) -> iolist_to_binary(S) end, <<"">>),
                             CartActionCheckout = gen_mod:get_module_opt(Server, ?MODULE, cart_action_type_checkout, fun(S) -> iolist_to_binary(S) end, <<"">>),
                             CartActionGet = gen_mod:get_module_opt(Server, ?MODULE, cart_action_type_get, fun(S) -> iolist_to_binary(S) end, <<"">>),
+                            CustomActionChatDelete = gen_mod:get_module_opt(Server, ?MODULE, custom_action_chat_delete, fun(S) -> iolist_to_binary(S) end, <<"">>),
                             if
                                 MessageType == CartActionShortlist; MessageType == CartActionRemove; MessageType == CartActionMarkOOS; MessageType == CartActionCheckout ->
                                     ?INFO_MSG("Cart action packet received: ~s", [fxml:element_to_binary(XmlP)]),
                                     CartActionResponse = cart_action(From, To, BodyJSON, MessageType),
                                     Key = send_cart_action_result_packet_async(From#jid.lserver, From, CartActionResponse, XmlP),
+                                    ?INFO_MSG("Async task initiated to send response for cart action (key: ~p)!", [Key]),
                                     {CartActionResponseJSON} = jiffy:decode(CartActionResponse),
                                     GSCCode = proplists:get_value(<<"gsc">>, CartActionResponseJSON),
                                     case GSCCode of
@@ -92,6 +94,20 @@ on_user_send_packet(Packet, _, From, To) ->
                                     ProcessPacket = false,
                                     CartGetResponse = cart_get(From, BodyJSON),
                                     send_cart_get_data_packet(From#jid.lserver, From, CartGetResponse, XmlP);
+                                MessageType == CustomActionChatDelete ->
+                                    ?INFO_MSG("Custom action packet received: ~s", [fxml:element_to_binary(XmlP)]),
+                                    ProcessPacket = false,
+                                    Peer = proplists:get_value(<<"peer">>, BodyBlock),
+                                    ?INFO_MSG("Peer: ~p", [binary_to_list(Peer)]),
+                                    Result = mod_mam:delete_messages_for_user(From#jid.luser, Server, Peer),
+                                    case Result of
+                                        {error, Reason} ->
+                                            ?ERROR_MSG("Message delete action failed with reason: ~s", [Reason]),
+                                            send_custom_action_result_packet(From, XmlP, <<"failure">>);
+                                        _ ->
+                                            ?INFO_MSG("Messages marked deleted successfully for ~p with ~p", [binary_to_list(From#jid.luser), binary_to_list(Peer)]),
+                                            send_custom_action_result_packet(From, XmlP, <<"success">>)
+                                    end;
                                 true ->
                                     ProcessPacket = true
                             end
@@ -121,6 +137,28 @@ send_cart_action_result_packet(Server, To, CartActionResponse, Packet) ->
                                  #xmlel{name = <<"received">>,
                                         attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ID}],
                                         children = []}]},
+    TimestampTag = gen_mod:get_module_opt(Server, mod_chat_interceptor, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
+    TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
+    case TimeStamp of
+        <<>> ->
+            XmlN = jlib:add_delay_info(XmlBody, Server, erlang:timestamp(), TimestampTag);
+        _ ->
+            TimeStampValue = jlib:datetime_string_to_timestamp(TimeStamp),
+            XmlN = jlib:add_delay_info(XmlBody, Server, TimeStampValue, TimestampTag)
+    end,
+    ejabberd_router:route(jlib:string_to_jid(Server), To, XmlN).
+
+send_custom_action_result_packet(To, Packet, Result) ->
+    ID = fxml:get_tag_attr_s(<<"id">>, Packet),
+    IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
+    Body = list_to_binary("{\"block\":{\"ty\":\"ch_ack\",\"result\":\"" ++ binary_to_list(Result) ++ "\"}}"),
+    Server = To#jid.lserver,
+    XmlBody = #xmlel{name = <<"message">>,
+                     attrs = [{<<"from">>, Server}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
+                     children = [#xmlel{name = <<"body">>,
+                                        children = [{xmlcdata, Body}]},
+                                 #xmlel{name = <<"received">>,
+                                        attrs = [{<<"xmlns">>, ?NS_RECEIPTS}, {<<"id">>, ID}]}]},
     TimestampTag = gen_mod:get_module_opt(Server, mod_chat_interceptor, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
     TimeStamp = fxml:get_path_s(Packet, [{elem, <<"delay">>}, {attr, <<"stamp">>}]),
     case TimeStamp of
@@ -222,7 +260,7 @@ cart_get(From, BodyJSON) ->
 
 send_cart_action_result_packet_async(Server, To, CartActionResponse, Packet) ->
     ?INFO_MSG("Send error packet from ~p to ~p", [binary_to_list(Server), binary_to_list(To#jid.luser)]),
-    Key = rpc:async_call(node(), mod_chat_cartactions, send_cart_action_result_packet, [Server, To, CartActionResponse, Packet]),
+    Key = rpc:async_call(node(), mod_chat_actions, send_cart_action_result_packet, [Server, To, CartActionResponse, Packet]),
     Key.
 
 send_cart_get_data_packet(Server, To, Data, Packet) ->
@@ -246,4 +284,3 @@ send_cart_get_data_packet(Server, To, Data, Packet) ->
             XmlN = jlib:add_delay_info(XmlBody, Server, TimeStampValue, TimestampTag)
     end,
     ejabberd_router:route(jlib:string_to_jid(Server), To, XmlN).
-

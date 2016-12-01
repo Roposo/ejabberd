@@ -601,9 +601,7 @@ modules:
   mod_caps: {}
   mod_carboncopy:
     db_type: mnesia
-  mod_chat_autoresponse:
-    auto_reply_url_post: "http://localhost:9020/chat/get_auto_response_json"
-  mod_chat_cartactions:
+  mod_chat_actions:
     cart_action_add_url_post: "http://localhost:9000/v3/add-to-cart"
     cart_action_remove_url_post: "http://localhost:9000/v3/remove-from-cart"
     cart_action_oos_url_post: "http://localhost:9000/v3/mark-oos"
@@ -615,6 +613,9 @@ modules:
     cart_action_type_mark_oos: "cs_oos"
     cart_action_type_checkout: "cr_cp"
     cart_action_type_get: "cr_get"
+    custom_action_chat_delete: "ch_del"
+  mod_chat_autoresponse:
+    auto_reply_url_post: "http://localhost:9020/chat/get_auto_response_json"
   mod_chat_interceptor:
     push_url_post: "http://localhost:9020/chat/send_push"
     vcard_url_post: "http://localhost:9020/chat/get_vcard_xml"
