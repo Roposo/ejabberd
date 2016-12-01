@@ -81,7 +81,8 @@ CREATE TABLE archive (
     mid_u VARCHAR(128) NOT NULL UNIQUE,
     kind varchar(10),
     nick varchar(191),
-    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    deleted character(1) NOT NULL DEFAULT 'N'
 ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE FULLTEXT INDEX i_text ON archive(txt);
