@@ -104,10 +104,10 @@ on_user_send_packet(Packet, _, From, To) ->
                                     case Result of
                                         {error, Reason} ->
                                             ?ERROR_MSG("Message delete action failed with reason: ~s", [Reason]),
-                                            send_custom_action_result_packet(From, XmlP, <<"failure">>);
+                                            send_custom_action_result_packet(Server, From, <<"failure">>, XmlP, Peer);
                                         _ ->
                                             ?INFO_MSG("Messages marked deleted successfully for ~p with ~p", [binary_to_list(From#jid.luser), binary_to_list(Peer)]),
-                                            send_custom_action_result_packet(From, XmlP, <<"success">>)
+                                            send_custom_action_result_packet(Server, From, <<"success">>, XmlP, Peer)
                                     end;
                                 true ->
                                     ProcessPacket = true
@@ -149,11 +149,11 @@ send_cart_action_result_packet(Server, To, CartActionResponse, Packet) ->
     end,
     ejabberd_router:route(jlib:string_to_jid(Server), To, XmlN).
 
-send_custom_action_result_packet(To, Packet, Result) ->
+send_custom_action_result_packet(Server, To, Result, Packet, Peer) ->
     ID = fxml:get_tag_attr_s(<<"id">>, Packet),
     IDR = list_to_binary(binary_to_list(ID) ++ "_result"),
-    Body = list_to_binary("{\"block\":{\"ty\":\"ch_ack\",\"result\":\"" ++ binary_to_list(Result) ++ "\"}}"),
-    Server = To#jid.lserver,
+    Body = list_to_binary("{\"block\":{\"ty\":\"ch_del_ack\",\"result\":\"" ++ binary_to_list(Result) ++ "\",\"peer\":\"" ++
+        binary_to_list(Peer) ++ "\"}}"),
     XmlBody = #xmlel{name = <<"message">>,
                      attrs = [{<<"from">>, Server}, {<<"to">>, jid:to_string(To)}, {<<"xml:lang">>, <<"en">>}, {<<"id">>, IDR}],
                      children = [#xmlel{name = <<"body">>,
