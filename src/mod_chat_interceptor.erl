@@ -94,7 +94,13 @@ mod_opt_type(_) -> [push_url_post, vcard_url_post, vcard_image_type, block_url_p
 
 add_timestamp(Pkt, LServer, TimestampTag) ->
 %  ?INFO_MSG("**************** Adding timestamp to packet ****************", []),
-  jlib:add_delay_info(Pkt, LServer, erlang:timestamp(), TimestampTag).
+  ExistingTimestampTag = fxml:get_path_s(Pkt, [{elem, <<"delay">>}, cdata]),
+  case ExistingTimestampTag of
+    TimestampTag ->
+      Pkt;
+    _ ->
+      jlib:add_delay_info(Pkt, LServer, erlang:timestamp(), TimestampTag)
+  end.
 
 send_push_notification_to_user(From, To, Body, Type, Server) ->
   PostUrl = binary_to_list(gen_mod:get_module_opt(Server, ?MODULE, push_url_post, fun(S) -> iolist_to_binary(S) end, list_to_binary(""))),
