@@ -393,12 +393,12 @@ make_sql_query(User, LServer, MAMQuery, RSM) ->
             {QueryPage,
              [<<"SELECT COUNT(*) FROM archive WHERE username='">>,
               SUser, <<"' and server_host='">>,
-              SServer, <<"'">>, WithClause, WithTextClause,
+              SServer, <<"'">>, DeletedClause, WithClause, WithTextClause,
               StartClause, EndClause, <<";">>]};
         false ->
             {QueryPage,
              [<<"SELECT COUNT(*) FROM archive WHERE username='">>,
-              SUser, <<"'">>, WithClause, WithTextClause,
+              SUser, <<"'">>, DeletedClause, WithClause, WithTextClause,
               StartClause, EndClause, <<";">>]}
     end.
 
