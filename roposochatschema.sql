@@ -78,7 +78,7 @@ CREATE TABLE archive (
     xml text NOT NULL,
     txt text,
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE,
-    mid VARCHAR(64) NOT NULL UNIQUE,
+    mid_u VARCHAR(64) NOT NULL UNIQUE,
     kind varchar(10),
     nick varchar(191),
     created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
