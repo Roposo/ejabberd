@@ -96,20 +96,30 @@ store(Pkt, LServer, {LUser, LHost}, Type, Peer, Nick, _Dir, TS) ->
 	      jid:tolower(Peer)),
     XML = fxml:element_to_binary(Pkt),
     Body = fxml:get_subtag_cdata(Pkt, <<"body">>),
+	  Mid = fxml:get_tag_attr_s(<<"id">>, Pkt),
     SType = misc:atom_to_binary(Type),
     case ejabberd_sql:sql_query(
            LServer,
-           ?SQL_INSERT(
-              "archive",
-              ["username=%(SUser)s",
-               "server_host=%(LServer)s",
-               "timestamp=%(TS)d",
-               "peer=%(LPeer)s",
-               "bare_peer=%(BarePeer)s",
-               "xml=%(XML)s",
-               "txt=%(Body)s",
-               "kind=%(SType)s",
-               "nick=%(Nick)s"])) of
+					 ?SQL("insert into archive (username, timestamp,"
+								" peer, bare_peer, xml, txt, mid, kind, nick) values ("
+								"%(SUser)s, "
+								"%(TSinteger)d, "
+								"%(LPeer)s, "
+								"%(BarePeer)s, "
+								"%(XML)s, "
+								"%(Body)s, "
+                "%(Mid)s, "
+								"%(SType)s, "
+                "%(Nick)s) "
+                "on duplicate key update "
+                "username=%(SUser)s, "
+                "timestamp=%(TSinteger)d, "
+                "peer=%(LPeer)s, "
+                "bare_peer=%(BarePeer)s, "
+                "xml=%(XML)s, "
+                "txt=%(Body)s, "
+                "kind=%(SType)s, "
+                "nick=%(Nick)s")) of
 	{updated, _} ->
 	    ok;
 	Err ->
