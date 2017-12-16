@@ -32,7 +32,7 @@
 
 %-export([on_filter_packet/1, post_to_server/5]).
 -export([on_filter_packet/1, post_to_server/6, on_filter_group_chat_packet/5, on_filter_group_chat_presence_packet/5,
-  on_update_presence/3, on_user_send_packet/4, on_user_receive_packet/5]).
+  on_update_presence/3, on_user_send_packet/4]).
 
 %-record(state, {config}).
 
@@ -60,7 +60,7 @@ start(Host, _Opts) ->
 %%  ejabberd_hooks:add(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
   ejabberd_hooks:add(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
 %%  capture packets received by user
-  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, on_user_receive_packet, 100),
+%%  ejabberd_hooks:add(user_receive_packet, Host, ?MODULE, on_user_receive_packet, 100),
 %%  ejabberd_hooks:add(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
   ok.
 
@@ -73,7 +73,7 @@ stop(Host) ->
 %%  ejabberd_hooks:delete(c2s_update_presence, Host, ?MODULE, on_update_presence, 3),
   ejabberd_hooks:delete(user_send_packet, Host, ?MODULE, on_user_send_packet, 10),
   % delete packets received by user
-  ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, on_user_receive_packet, 100),
+%%  ejabberd_hooks:delete(user_receive_packet, Host, ?MODULE, on_user_receive_packet, 100),
 %%  ejabberd_hooks:delete(privacy_iq_set, Host, ?MODULE, process_iq_set, 27),
   ok.
 
@@ -168,37 +168,28 @@ auto_accept_chat_request_async(From, To, Server) ->
   Key = rpc:async_call(node(), mod_chat_interceptor, auto_accept_chat_request, [From, To, Server]),
   Key.
 
-on_user_send_packet(Pkt, _, _, To) ->
-  XmlP = Pkt,
-  {_Xmlel, _Type, _Details, _Body} = XmlP,
-  case _Type of
-    <<"message">> ->
-      Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
-      case Type of
-        <<"chat">> ->
-          Body = fxml:get_path_s(XmlP, [{elem, list_to_binary("body")}, cdata]),
-          case Body of
-            <<"">> ->
-              XmlN = XmlP;
-            _ ->
-              Server = To#jid.lserver,
-              TimestampTag = gen_mod:get_module_opt(Server, ?MODULE, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
-              XmlN = add_timestamp(XmlP, Server, TimestampTag)
-%              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
-          end;
-        _ ->
-          XmlN = XmlP
-      end;
-    _ ->
-      XmlN = XmlP
-  end,
-  XmlN.
-
-on_user_receive_packet(Pkt, _, _, From, To) ->
+on_user_send_packet(Pkt, _, From, To) ->
   XmlP = Pkt,
   case XmlP of
     {_Xmlel, _Type, _Details, _Body} ->
       case _Type of
+        <<"message">> ->
+          Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
+          case Type of
+            <<"chat">> ->
+              Body = fxml:get_path_s(XmlP, [{elem, list_to_binary("body")}, cdata]),
+              case Body of
+                <<"">> ->
+                  XmlN = XmlP;
+                _ ->
+                  Server = To#jid.lserver,
+                  TimestampTag = gen_mod:get_module_opt(Server, ?MODULE, timestamp_tag, fun(S) -> iolist_to_binary(S) end, list_to_binary("")),
+                  XmlN = add_timestamp(XmlP, Server, TimestampTag)
+%              ?INFO_MSG("**************** Added timestamp to packet, new packet: ~p ****************", [binary_to_list(fxml:element_to_binary(XmlN))])
+              end;
+            _ ->
+              XmlN = XmlP
+          end;
         <<"presence">> ->
           Type = fxml:get_tag_attr_s(<<"type">>, XmlP),
           case Type of
@@ -208,7 +199,8 @@ on_user_receive_packet(Pkt, _, _, From, To) ->
               case should_auto_accept(From, To, From#jid.lserver) of
                 true ->
                   #xmlel{name = Name, attrs = Attrs, children = Els} = XmlP,
-                  NewEls = [#xmlel{name = <<"autoaccept">>, children = [{xmlcdata, <<"true">>}]} | Els],
+                  ElsWithStatus = [#xmlel{name = <<"status">>, children = [{xmlcdata, <<"autoaccept">>}]} | Els],
+                  NewEls = [#xmlel{name = <<"autoaccept">>, children = [{xmlcdata, <<"true">>}]} | ElsWithStatus],
                   XmlN = #xmlel{name = Name, attrs = Attrs, children = NewEls};
                 false ->
                   XmlN = XmlP
