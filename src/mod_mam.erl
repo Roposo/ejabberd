@@ -39,7 +39,8 @@
 	 disco_sm_features/5, remove_user/2, remove_room/3, mod_opt_type/1,
 	 muc_process_iq/2, muc_filter_message/3, message_is_archived/3,
 	 delete_old_messages/2, get_commands_spec/0, msg_to_el/4,
-	 get_room_config/4, set_room_option/3, offline_message/1, export/1]).
+	 get_room_config/4, set_room_option/3, offline_message/1, export/1,
+	delete_messages_for_user/3]).
 
 -include("xmpp.hrl").
 -include("logger.hrl").
@@ -496,6 +497,11 @@ delete_old_messages(TypeBin, Days) when TypeBin == <<"chat">>;
     end;
 delete_old_messages(_TypeBin, _Days) ->
     unsupported_type.
+
+delete_messages_for_user(LUser, LServer, LPeer) ->
+	DBType = gen_mod:db_type(LServer, ?MODULE),
+	Mod = gen_mod:db_mod(DBType, ?MODULE),
+	Mod:delete_messages_for_user(LUser, LServer, LPeer).
 
 export(LServer) ->
     Mod = gen_mod:db_mod(LServer, ?MODULE),

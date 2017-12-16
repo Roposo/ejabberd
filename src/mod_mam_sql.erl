@@ -30,7 +30,8 @@
 
 %% API
 -export([init/2, remove_user/2, remove_room/3, delete_old_messages/3,
-	 extended_fields/0, store/8, write_prefs/4, get_prefs/2, select/6, export/1]).
+	 extended_fields/0, store/8, write_prefs/4, get_prefs/2, select/6, export/1,
+	delete_messages_for_user/3]).
 
 -include_lib("stdlib/include/ms_transform.hrl").
 -include("xmpp.hrl").
@@ -256,6 +257,22 @@ export(_Server) ->
               []
       end}].
 
+delete_messages_for_user(LUser, LServer, LPeer) ->
+	LPeerJID = append_string(LPeer, binary_to_list(LServer)),
+	?WARNING_MSG("LPeerJID: ~p", [LPeerJID]),
+	ejabberd_sql:sql_query(LServer,
+		[<<"update archive set deleted = 'Y' where username = '">>, LUser, <<"' and bare_peer in ('">>,
+			join(LPeerJID, "', '"),
+			<<"');">>
+		]),
+	ejabberd_sql:sql_query(LServer,
+		[<<"update archive_latest set deleted = 'Y' where username = '">>, LUser, <<"' and bare_peer in ('">>,
+			join(LPeerJID, "', '"),<<"');">>]).
+	%%ejabberd_sql:sql_transaction(
+	%%   LServer,
+	%%   [?SQL("update archive set deleted = 'Y' where username = %(LUser)s and bare_peer in %(LPeerJID)s"),
+	%%  ?SQL("update archive_latest set deleted = 'Y' where username = %(LUser)s and bare_peer in %(LPeerJID)s")]).
+
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -337,6 +354,7 @@ make_sql_query(User, LServer, MAMQuery, RSM) ->
 		    _ ->
 			[]
 		end,
+		DeletedClause = [<<" AND deleted = 'N'">>],
     SUser = Escape(User),
     SServer = Escape(LServer),
 
@@ -347,13 +365,13 @@ make_sql_query(User, LServer, MAMQuery, RSM) ->
                  <<" timestamp, xml, peer, kind, nick"
                   " FROM archive WHERE username='">>,
                  SUser, <<"' and server_host='">>,
-                 SServer, <<"'">>, WithClause, WithTextClause,
+                 SServer, <<"'">>, DeletedClause, WithClause, WithTextClause,
                  StartClause, EndClause, PageClause];
             false ->
                 [<<"SELECT ">>, TopClause,
                  <<" timestamp, xml, peer, kind, nick"
                   " FROM archive WHERE username='">>,
-                 SUser, <<"'">>, WithClause, WithTextClause,
+                 SUser, <<"'">>, DeletedClause, WithClause, WithTextClause,
                  StartClause, EndClause, PageClause]
         end,
 
