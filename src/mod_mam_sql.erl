@@ -96,7 +96,7 @@ store(Pkt, LServer, {LUser, LHost}, Type, Peer, Nick, _Dir, TS) ->
 	      jid:tolower(Peer)),
     XML = fxml:element_to_binary(Pkt),
     Body = fxml:get_subtag_cdata(Pkt, <<"body">>),
-	  Mid_U = fxml:get_tag_attr_s(<<"id">>, Pkt),
+	  Mid_U = list_to_binary(binary_to_list(fxml:get_tag_attr_s(<<"id">>, Pkt)) ++ "_" ++ binary_to_list(SUser)),
     SType = misc:atom_to_binary(Type),
     case ejabberd_sql:sql_query(
            LServer,
